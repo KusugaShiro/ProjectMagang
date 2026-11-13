@@ -10,6 +10,7 @@ import {
   apiKirimLaporan,
   apiSahkanLaporan,
   apiKembalikanLaporan,
+  hitungTriwulanDB,
 } from '../lib/api'
 import {
   currentUser,
@@ -52,7 +53,8 @@ const filter = reactive({
   tahun: 2026,
 })
 
-const hitungTriwulan = computed(() => Math.ceil(filter.bulan / 3))
+// Rumus Triwulan sesuai Aturan Bisnis #1 PRD: (bulan + 2) DIV 3
+const hitungTriwulan = computed(() => hitungTriwulanDB(filter.bulan))
 
 // State Dokumen Laporan Aktif
 const isFormOpen = ref(false)
@@ -63,6 +65,12 @@ const isWorkflowLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const infoMessage = ref('')
+
+// Penandatangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
+const activeWilayahInfo = computed(() => {
+  if (!activeLaporan.value) return null
+  return daftarWilayah.value.find(w => w.id_wilayah === activeLaporan.value.id_wilayah) || activeLaporan.value.wilayah
+})
 
 // Cek apakah form berstatus terkunci (read-only)
 const isReadOnly = computed(() => {
@@ -298,7 +306,7 @@ function tutupForm() {
 async function downloadExcel() {
   if (!activeLaporan.value) return
   try {
-    const wilObj = daftarWilayah.value.find(w => w.id_wilayah === activeLaporan.value.id_wilayah)
+    const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
     await exportK1ToExcel({
@@ -310,6 +318,7 @@ async function downloadExcel() {
         triwulan: activeLaporan.value.triwulan,
         tahun: activeLaporan.value.tahun,
         kode: props.config.kode || 'K1',
+        wilayahObj: wilObj,
       },
       rowsData,
       summaryTotals: summaryTotals.value,
@@ -346,7 +355,7 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
 
-    <!-- Pesan Peringatan Error (Merah Kuat & Teks Hitam) -->
+    <!-- Pesan Peringatan Error -->
     <div v-if="errorMessage" class="p-4 rounded-xl bg-red-100 border-2 border-red-500 text-black text-sm flex items-start gap-3 shadow-xs">
       <svg class="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -354,7 +363,7 @@ onMounted(() => {
       <div class="font-bold text-black">{{ errorMessage }}</div>
     </div>
 
-    <!-- Pesan Sukses (Kuning Cerah & Teks Hitam) -->
+    <!-- Pesan Sukses -->
     <div v-if="successMessage" class="p-4 rounded-xl bg-yellow-300 border-2 border-black text-black text-sm flex items-center gap-3 shadow-xs">
       <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -362,7 +371,7 @@ onMounted(() => {
       <div class="font-black text-black">{{ successMessage }}</div>
     </div>
 
-    <!-- Pesan Info Status (Kuning Lembut & Teks Hitam) -->
+    <!-- Pesan Info Status -->
     <div v-if="infoMessage" class="p-4 rounded-xl bg-yellow-50 border-2 border-yellow-400 text-black text-sm flex items-center gap-3 shadow-xs font-bold">
       <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -378,7 +387,7 @@ onMounted(() => {
           1. Pilih wilayah dan periode
         </h2>
         <span class="text-xs text-black font-bold">
-          Standar REST API Laravel (Bulan 1-12 & Tahun)
+          PRD: Header (wilayah, tahun, bulan) unik &bull; triwulan = (bulan + 2) DIV 3
         </span>
       </div>
 
@@ -411,7 +420,7 @@ onMounted(() => {
           </select>
         </div>
 
-        <!-- Triwulan (Auto-calculated) -->
+        <!-- Triwulan (Auto-calculated via PRD Formula: (bulan + 2) DIV 3) -->
         <div>
           <label class="block text-xs font-black text-black mb-1.5">Triwulan (Otomatis)</label>
           <div class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm font-black flex items-center justify-between">
@@ -433,7 +442,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Tombol Aksi Buka Form (Kuning & Hitam) -->
+      <!-- Tombol Aksi Buka Form -->
       <div class="mt-5 flex justify-end">
         <button
           @click="bukaFormIsian"
@@ -462,10 +471,15 @@ onMounted(() => {
             <span class="w-3 h-3 rounded-full" :class="isReadOnly ? 'bg-emerald-500' : 'bg-yellow-400 border border-black'"></span>
             2. Isi data ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
           </h2>
-          <p class="text-xs text-black mt-0.5 font-bold">
-            ID Dokumen: <span class="font-mono font-black text-black">#{{ activeLaporan.id_laporan }}</span> &bull; 
-            Triwulan: <span class="font-mono font-black text-black">TW {{ activeLaporan.triwulan }}</span>
-          </p>
+          <div class="flex flex-wrap items-center gap-3 mt-1 text-xs text-black font-bold">
+            <span>ID Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
+            <span>&bull;</span>
+            <span>Triwulan: <strong class="font-mono text-black">TW {{ activeLaporan.triwulan }}</strong></span>
+            <span>&bull;</span>
+            <span class="bg-yellow-200 px-2 py-0.5 rounded border border-black text-[11px]">
+              Tabel DB: <strong>rekap_k1_pegawai</strong> (Snapshot Akhir TW)
+            </span>
+          </div>
         </div>
 
         <!-- Badges & Tombol Workflow -->
@@ -499,7 +513,7 @@ onMounted(() => {
             DISAHKAN (Terkunci / Read-Only)
           </div>
 
-          <!-- Tombol Kirim (Putih/Kuning border hitam) -->
+          <!-- Tombol Kirim -->
           <button
             v-if="activeLaporan.status_laporan === 'draf' && (isOperator || isAdmin)"
             @click="aksiKirim"
@@ -512,7 +526,7 @@ onMounted(() => {
             Kirim ke Kepala Balai
           </button>
 
-          <!-- Tombol Sahkan (Hitam teks Kuning) -->
+          <!-- Tombol Sahkan -->
           <button
             v-if="activeLaporan.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
             @click="aksiSahkan"
@@ -525,7 +539,7 @@ onMounted(() => {
             Sahkan Laporan
           </button>
 
-          <!-- Tombol Kembalikan ke Draf (Merah border hitam) -->
+          <!-- Tombol Kembalikan ke Draf -->
           <button
             v-if="(activeLaporan.status_laporan === 'terkirim' || activeLaporan.status_laporan === 'disahkan') && (isKepalaBalai || isAdmin)"
             @click="aksiKembalikan"
@@ -554,7 +568,6 @@ onMounted(() => {
       <div class="overflow-x-auto rounded-lg border-2 border-black max-w-full shadow-xs">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <!-- Header Baris 1 (Hitam Elegan dengan teks putih) -->
             <tr class="bg-black text-white border-b-2 border-black">
               <th
                 rowspan="2"
@@ -599,7 +612,6 @@ onMounted(() => {
                 Ket.
               </th>
             </tr>
-            <!-- Header Baris 2 (Spesialis 1-11) -->
             <tr class="bg-slate-900 text-yellow-300 border-b-2 border-black">
               <th
                 v-for="sf in config.spesialisFields"
@@ -615,7 +627,7 @@ onMounted(() => {
           <tbody class="divide-y divide-slate-300 text-black">
             <template v-for="(row, rIdx) in config.rows" :key="row.id_jabatan || `grp-${rIdx}`">
               
-              <!-- Tipe Baris Grup (Terampil/SLA & Ahli/S1-S2) - Kuning Terang Teks Hitam Pekat -->
+              <!-- Tipe Baris Grup (Terampil/SLA & Ahli/S1-S2) -->
               <tr v-if="row.isGroup" class="bg-yellow-200 font-black text-black border-b-2 border-yellow-400">
                 <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-200 border-r border-yellow-400 text-black font-black">
                   {{ row.no }}
@@ -638,15 +650,12 @@ onMounted(() => {
 
               <!-- Tipe Baris Data Isian -->
               <tr v-else class="hover:bg-yellow-50/50 transition">
-                <!-- No (Sticky 1) -->
                 <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black">
                   {{ row.no }}
                 </td>
-                <!-- Jabatan (Sticky 2) -->
                 <td class="p-2.5 sticky left-12 z-10 bg-white border-r-2 border-slate-300 whitespace-nowrap font-bold text-black">
                   {{ row.label }}
                 </td>
-                <!-- Umum -->
                 <td class="p-1 border-r border-slate-300">
                   <input
                     type="number"
@@ -657,7 +666,6 @@ onMounted(() => {
                     class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
-                <!-- Spesialis 1 - 11 -->
                 <td
                   v-for="sf in config.spesialisFields"
                   :key="`data-${row.id_jabatan}-${sf.key}`"
@@ -672,11 +680,9 @@ onMounted(() => {
                     class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
-                <!-- Jumlah (Otomatis & Kuning Emas Bold) -->
                 <td class="p-2 text-center font-black text-black bg-yellow-300 border-r-2 border-slate-300 font-mono text-sm">
                   {{ summaryTotals.rowTotals[row.id_jabatan] ?? 0 }}
                 </td>
-                <!-- PPNS -->
                 <td class="p-1 border-r border-slate-300">
                   <input
                     type="number"
@@ -687,7 +693,6 @@ onMounted(() => {
                     class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
-                <!-- Keterangan -->
                 <td class="p-1">
                   <input
                     type="text"
@@ -701,7 +706,7 @@ onMounted(() => {
               </tr>
             </template>
 
-            <!-- BARIS JUMLAH TOTAL (KUNING HITAM BOLD) -->
+            <!-- BARIS JUMLAH TOTAL -->
             <tr class="bg-yellow-400 font-black text-black border-t-4 border-black">
               <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-400 border-r border-black font-black">
                 -
@@ -733,9 +738,32 @@ onMounted(() => {
         </table>
       </div>
 
+      <!-- BLOK TANDA TANGAN DINAMIS DARI wilayah_pengawasan (ATURAN BISNIS #5 PRD) -->
+      <div v-if="activeWilayahInfo" class="pt-4 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-black font-bold">
+        <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
+          <p class="font-normal">Mengetahui,</p>
+          <p class="font-black text-sm">KEPALA BALAI PENGAWASAN</p>
+          <div class="h-14"></div>
+          <p class="font-black underline text-sm">{{ activeWilayahInfo.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep" }}</p>
+          <p class="text-[11px] font-mono">NIP. {{ activeWilayahInfo.nip_kepala_balai || '19740315 199803 2 007' }}</p>
+        </div>
+
+        <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
+          <p class="font-normal">{{ activeWilayahInfo.teks_header_kabupaten }}, 2026</p>
+          <p class="font-black text-sm">PEMBUAT LAPORAN</p>
+          <div class="h-14"></div>
+          <p class="font-black underline text-sm">
+            {{ activeWilayahInfo.nama_pembuat_laporan || currentUser?.nama_pengguna || 'PETUGAS PENGAWAS' }}
+          </p>
+          <p class="text-[11px] font-mono">
+            NIP. {{ activeWilayahInfo.nip_pembuat_laporan || currentUser?.nip_pegawai || '-' }}
+          </p>
+        </div>
+      </div>
+
       <!-- EMPAT TOMBOL AKSI -->
       <div class="pt-4 flex flex-wrap items-center justify-end gap-3">
-        <!-- Tombol Tutup (Putih border hitam) -->
+        <!-- Tombol Tutup -->
         <button
           @click="tutupForm"
           class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-black transition cursor-pointer"
@@ -743,7 +771,7 @@ onMounted(() => {
           Tutup
         </button>
 
-        <!-- Tombol Reset ke Nol (Merah) -->
+        <!-- Tombol Reset ke Nol -->
         <button
           @click="resetKeNol"
           :disabled="isReadOnly"
@@ -752,7 +780,7 @@ onMounted(() => {
           Reset ke nol
         </button>
 
-        <!-- Tombol Download Excel (Hijau/Emerald) -->
+        <!-- Tombol Download Excel -->
         <button
           @click="downloadExcel"
           class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-2 border-emerald-800"
@@ -763,7 +791,7 @@ onMounted(() => {
           Download Excel
         </button>
 
-        <!-- Tombol Simpan (Kuning & Hitam) -->
+        <!-- Tombol Simpan -->
         <button
           @click="simpan"
           :disabled="isLoading || isReadOnly"
@@ -781,7 +809,7 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- KARTU 3: KETERANGAN KOLOM SPESIALIS (PUTIH DENGAN TEKS HITAM & AKSEN KUNING) -->
+    <!-- KARTU 3: KETERANGAN KOLOM SPESIALIS -->
     <section
       v-if="config.specialistDescriptions && config.specialistDescriptions.length > 0"
       class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs"

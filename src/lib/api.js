@@ -1,7 +1,9 @@
 /**
- * Lapisan Klien REST API Resmi Sistem Rekapitulasi Pelaporan Pengawasan Ketenagakerjaan & K3
- * Berdasarkan Spesifikasi Dokumen Kontrak API Backend (REST API) v1.0.0 (OpenAPI 3.1.0)
- * UPTD Balai Pengawasan Ketenagakerjaan Daerah Wilayah I Provinsi Kalimantan Selatan
+ * Lapisan Klien REST API Sistem Rekapitulasi Pelaporan Pengawasan Ketenagakerjaan & K3
+ * Selaras dengan:
+ * - PRD Database Rekapitulasi Pelaporan Pengawasan & K3 (K1–K10) (MySQL 8.0+ / MariaDB 10.5+)
+ * - Kontrak API Backend (REST API) v1.0.0 Laravel 13.x
+ * - UPTD Balai Pengawasan Ketenagakerjaan Daerah Wilayah I Provinsi Kalimantan Selatan
  */
 
 import { authToken, currentUser, setSession, SEED_ACCOUNTS } from './auth'
@@ -23,11 +25,12 @@ function getHeaders(isJson = true) {
 }
 
 // ==========================================
-// MOCK STORAGE ENGINE (FALLBACK JIKA BACKEND OFFLINE)
+// MOCK STORAGE ENGINE (SESUAI DDL schema_rekap_k3.sql)
 // ==========================================
-const MOCK_STORAGE_KEY = 'k3_mock_database_v2'
+const MOCK_STORAGE_KEY = 'k3_prd_database_v3'
 
-const MASTER_WILAYAH = [
+// Tabel Master: wilayah_pengawasan (FR-DB-02 & Aturan Bisnis 5)
+export const MASTER_WILAYAH = [
   {
     id_wilayah: 1,
     kode_wilayah: 'BJM',
@@ -49,12 +52,27 @@ const MASTER_WILAYAH = [
     teks_header_kabupaten: 'Barito Kuala',
     nama_kepala_balai: "JUM'AH, S.Kep., M.Kep",
     nip_kepala_balai: '19740315 199803 2 007',
-    nama_pembuat_laporan: null,
-    nip_pembuat_laporan: null
+    nama_pembuat_laporan: 'Operator Batola',
+    nip_pembuat_laporan: '19820512 201001 1 015'
   }
 ]
 
-const MASTER_JABATAN = [
+// Tabel Master: master_sektor_klui (FR-DB-02 & Temuan 1)
+export const MASTER_SEKTOR_KLUI = [
+  { id_klui: 1, nomor_urut: 1, kode_klui: '1', nama_sektor: 'Pertanian, Perburuan, Kehutanan, Perikanan' },
+  { id_klui: 2, nomor_urut: 2, kode_klui: '2', nama_sektor: 'Pertambangan dan Penggalian' },
+  { id_klui: 3, nomor_urut: 3, kode_klui: '3', nama_sektor: 'Industri Pengolahan' },
+  { id_klui: 4, nomor_urut: 4, kode_klui: '4', nama_sektor: 'Listrik, Gas dan Air' },
+  { id_klui: 5, nomor_urut: 5, kode_klui: '5', nama_sektor: 'Konstruksi' },
+  { id_klui: 6, nomor_urut: 6, kode_klui: '6', nama_sektor: 'Perdagangan Besar, Eceran, Rumah Makan & Hotel' },
+  { id_klui: 7, nomor_urut: 7, kode_klui: '7', nama_sektor: 'Angkutan, Pergudangan dan Komunikasi' },
+  { id_klui: 8, nomor_urut: 8, kode_klui: '8', nama_sektor: 'Keuangan, Asuransi, Usaha Persewaan & Jasa Perusahaan' },
+  { id_klui: 9, nomor_urut: 9, kode_klui: '9', nama_sektor: 'Jasa Kemasyarakatan, Sosial dan Perorangan' },
+  { id_klui: 10, nomor_urut: 10, kode_klui: '0', nama_sektor: 'Kegiatan yang Belum Jelas Batasannya' },
+]
+
+// Tabel Master: master_jabatan_pengawas (FR-DB-02 & Temuan 1)
+export const MASTER_JABATAN = [
   { id_jabatan: 1, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'a', nama_jabatan: 'Pelaksana', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 1 },
   { id_jabatan: 2, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'b', nama_jabatan: 'Pelaksana Lanjutan', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 2 },
   { id_jabatan: 3, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'c', nama_jabatan: 'Penyelia', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 3 },
@@ -70,12 +88,11 @@ function getMockDb() {
   } catch (e) {
     console.error(e)
   }
-  // Data inisial jika kosong
   const initialDb = {
     laporanSeq: 1,
-    laporanList: [], // { id_laporan, id_wilayah, id_pengguna, tahun, bulan, triwulan, tanggal_pengesahan, status_laporan, waktu_input, wilayah, pengguna }
-    matriksData: {}, // key: `${id_laporan}_${modul}` -> { baris: [...], meta: {...} }
-    logs: {}, // key: `${id_laporan}` -> [ { id_log, aksi, catatan, waktu, pengguna } ]
+    laporanList: [], // Tabel laporan_bulanan
+    matriksData: {}, // Tabel rekap_k1_pegawai s.d. rekap_k10_penyidikan
+    logs: {}, // Tabel log_perubahan
   }
   saveMockDb(initialDb)
   return initialDb
@@ -87,6 +104,12 @@ function saveMockDb(db) {
   } catch (e) {
     console.error(e)
   }
+}
+
+// Rumus Triwulan sesuai Aturan Bisnis #1 PRD Database: (bulan + 2) DIV 3
+export function hitungTriwulanDB(bulan) {
+  const b = Number(bulan) || 1
+  return Math.floor((b + 2) / 3)
 }
 
 // ==========================================
@@ -108,7 +131,6 @@ export async function apiLogin(email, kata_sandi) {
     const errData = await res.json()
     throw new Error(errData.message || 'Login gagal.')
   } catch (e) {
-    // Fallback Mock Seeder
     const found = SEED_ACCOUNTS.find(a => a.email === email)
     if (found) {
       const token = 'mock_token_' + found.peran + '_' + Date.now()
@@ -130,9 +152,7 @@ export async function apiGetMe() {
       setSession(authToken.value, data.data)
       return data.data
     }
-  } catch (e) {
-    // Gunakan user sesi lokal
-  }
+  } catch (e) {}
   return currentUser.value
 }
 
@@ -142,16 +162,14 @@ export async function apiLogout() {
       method: 'POST',
       headers: getHeaders(false),
     })
-  } catch (e) {
-    // abaikan jika offline
-  } finally {
+  } catch (e) {} finally {
     setSession(null, null)
   }
   return { message: 'Berhasil keluar.' }
 }
 
 // ==========================================
-// 2. ENDPOINT DATA MASTER
+// 2. ENDPOINT DATA MASTER (FR-DB-02)
 // ==========================================
 
 export async function apiGetMasterWilayah() {
@@ -164,15 +182,26 @@ export async function apiGetMasterWilayah() {
       const json = await res.json()
       return json.data
     }
-  } catch (e) {
-    // fallback
-  }
+  } catch (e) {}
 
-  // Jika operator_kabupaten, filter hanya wilayahnya
   if (currentUser.value?.peran === 'operator_kabupaten' && currentUser.value.id_wilayah) {
     return MASTER_WILAYAH.filter(w => w.id_wilayah === currentUser.value.id_wilayah)
   }
   return MASTER_WILAYAH
+}
+
+export async function apiGetMasterKlui() {
+  try {
+    const res = await fetch(`${BASE_URL}/master/klui`, {
+      method: 'GET',
+      headers: getHeaders(false),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      return json.data
+    }
+  } catch (e) {}
+  return MASTER_SEKTOR_KLUI
 }
 
 export async function apiGetMasterJabatan(modul = 'k1') {
@@ -186,9 +215,7 @@ export async function apiGetMasterJabatan(modul = 'k1') {
       const json = await res.json()
       return json.data
     }
-  } catch (e) {
-    // fallback
-  }
+  } catch (e) {}
 
   if (modul === 'k1') {
     return MASTER_JABATAN.filter(j => j.tampil_di_k1)
@@ -197,7 +224,7 @@ export async function apiGetMasterJabatan(modul = 'k1') {
 }
 
 // ==========================================
-// 3. ENDPOINT HEADER LAPORAN BULANAN & WORKFLOW
+// 3. ENDPOINT HEADER LAPORAN BULANAN (FR-DB-03 & ALUR KERJA)
 // ==========================================
 
 export async function apiGetDaftarLaporan(params = {}) {
@@ -217,14 +244,11 @@ export async function apiGetDaftarLaporan(params = {}) {
       const json = await res.json()
       return json.data
     }
-  } catch (e) {
-    // fallback mock
-  }
+  } catch (e) {}
 
   const db = getMockDb()
   let list = [...db.laporanList]
 
-  // Filter operator
   if (currentUser.value?.peran === 'operator_kabupaten' && currentUser.value.id_wilayah) {
     list = list.filter(item => item.id_wilayah === currentUser.value.id_wilayah)
   } else if (params.id_wilayah) {
@@ -236,7 +260,6 @@ export async function apiGetDaftarLaporan(params = {}) {
   if (params.triwulan) list = list.filter(i => i.triwulan === Number(params.triwulan))
   if (params.status_laporan) list = list.filter(i => i.status_laporan === params.status_laporan)
 
-  // Urutkan tahun dan bulan terbaru
   list.sort((a, b) => {
     if (b.tahun !== a.tahun) return b.tahun - a.tahun
     return b.bulan - a.bulan
@@ -261,13 +284,11 @@ export async function apiBuatLaporan({ id_wilayah, tahun, bulan }) {
     if (e.message && e.message !== 'Failed to fetch') throw e
   }
 
-  // Fallback Mock
   const db = getMockDb()
   const idWil = Number(id_wilayah)
   const thn = Number(tahun)
   const bln = Number(bulan)
 
-  // Cek duplikasi
   const existing = db.laporanList.find(l => l.id_wilayah === idWil && l.tahun === thn && l.bulan === bln)
   if (existing) {
     return existing
@@ -283,7 +304,7 @@ export async function apiBuatLaporan({ id_wilayah, tahun, bulan }) {
     id_pengguna: userObj.id_pengguna || 1,
     tahun: thn,
     bulan: bln,
-    triwulan: Math.ceil(bln / 3),
+    triwulan: hitungTriwulanDB(bln),
     tanggal_pengesahan: null,
     status_laporan: 'draf',
     waktu_input: new Date().toISOString(),
@@ -298,11 +319,12 @@ export async function apiBuatLaporan({ id_wilayah, tahun, bulan }) {
 
   db.laporanList.unshift(newLaporan)
 
-  // Catat log
+  // Audit log sesuai Bagian 6a PRD (aksi: 'tambah')
   if (!db.logs[newId]) db.logs[newId] = []
   db.logs[newId].push({
-    aksi: 'Dibuat',
-    catatan: 'Dokumen laporan bulanan dibuat dengan status draf.',
+    aksi: 'tambah',
+    tabel_terkait: 'laporan_bulanan',
+    catatan: 'Dokumen header laporan bulanan dibuat dengan status draf.',
     waktu: new Date().toISOString(),
     pengguna: userObj.nama_pengguna,
   })
@@ -346,11 +368,10 @@ export async function apiHapusLaporan(id_laporan) {
   const idx = db.laporanList.findIndex(l => l.id_laporan === Number(id_laporan))
   if (idx !== -1) {
     if (db.laporanList[idx].status_laporan === 'disahkan') {
-      throw new Error('Laporan yang sudah berstatus disahkan tidak dapat dihapus.')
+      throw new Error('Akses Ditolak (403): Laporan yang sudah berstatus disahkan tidak boleh dihapus.')
     }
     db.laporanList.splice(idx, 1)
     delete db.logs[id_laporan]
-    // bersihkan matriks terkait
     Object.keys(db.matriksData).forEach(k => {
       if (k.startsWith(`${id_laporan}_`)) delete db.matriksData[k]
     })
@@ -359,7 +380,6 @@ export async function apiHapusLaporan(id_laporan) {
   return true
 }
 
-// Transisi status: Draf -> Terkirim
 export async function apiKirimLaporan(id_laporan) {
   try {
     const res = await fetch(`${BASE_URL}/laporan/${id_laporan}/kirim`, {
@@ -381,8 +401,9 @@ export async function apiKirimLaporan(id_laporan) {
   lap.status_laporan = 'terkirim'
   if (!db.logs[id_laporan]) db.logs[id_laporan] = []
   db.logs[id_laporan].push({
-    aksi: 'Dikirim',
-    catatan: 'Laporan dikirim ke Kepala Balai untuk diperiksa.',
+    aksi: 'kirim',
+    tabel_terkait: 'laporan_bulanan',
+    catatan: 'Laporan dikirim dari draf ke status terkirim untuk diperiksa Kepala Balai.',
     waktu: new Date().toISOString(),
     pengguna: currentUser.value?.nama_pengguna || 'Operator',
   })
@@ -390,7 +411,6 @@ export async function apiKirimLaporan(id_laporan) {
   return { message: 'Laporan berhasil dikirim.' }
 }
 
-// Transisi status: Terkirim -> Disahkan (Kunci Data)
 export async function apiSahkanLaporan(id_laporan) {
   try {
     const res = await fetch(`${BASE_URL}/laporan/${id_laporan}/sahkan`, {
@@ -415,8 +435,9 @@ export async function apiSahkanLaporan(id_laporan) {
   lap.tanggal_pengesahan = new Date().toISOString().slice(0, 10)
   if (!db.logs[id_laporan]) db.logs[id_laporan] = []
   db.logs[id_laporan].push({
-    aksi: 'Disahkan',
-    catatan: `Laporan disahkan oleh ${currentUser.value?.nama_pengguna || 'Kepala Balai'}. Data dikunci.`,
+    aksi: 'sahkan',
+    tabel_terkait: 'laporan_bulanan',
+    catatan: `Laporan disahkan oleh ${currentUser.value?.nama_pengguna || 'Kepala Balai'}. Seluruh modul K1 s.d K10 dikunci (read-only).`,
     waktu: new Date().toISOString(),
     pengguna: currentUser.value?.nama_pengguna || 'Kepala Balai',
   })
@@ -424,7 +445,6 @@ export async function apiSahkanLaporan(id_laporan) {
   return { message: 'Laporan berhasil disahkan.' }
 }
 
-// Transisi status: Terkirim / Disahkan -> Kembali ke Draf
 export async function apiKembalikanLaporan(id_laporan) {
   try {
     const res = await fetch(`${BASE_URL}/laporan/${id_laporan}/kembalikan`, {
@@ -446,7 +466,8 @@ export async function apiKembalikanLaporan(id_laporan) {
   lap.tanggal_pengesahan = null
   if (!db.logs[id_laporan]) db.logs[id_laporan] = []
   db.logs[id_laporan].push({
-    aksi: 'Dikembalikan ke Draf',
+    aksi: 'kembalikan',
+    tabel_terkait: 'laporan_bulanan',
     catatan: 'Laporan dikembalikan ke status draf oleh Kepala Balai/Admin. Kunci data dibuka.',
     waktu: new Date().toISOString(),
     pengguna: currentUser.value?.nama_pengguna || 'Kepala Balai',
@@ -472,7 +493,7 @@ export async function apiGetLaporanLog(id_laporan) {
 }
 
 // ==========================================
-// 4. ENDPOINT MODUL MATRIKS (K1 s.d. K10)
+// 4. ENDPOINT MODUL MATRIKS K1 s.d. K10 (FR-DB-04)
 // ==========================================
 
 export async function apiGetMatriksModul(id_laporan, modul = 'k1') {
@@ -488,7 +509,6 @@ export async function apiGetMatriksModul(id_laporan, modul = 'k1') {
     }
   } catch (e) {}
 
-  // Fallback Mock
   const db = getMockDb()
   const key = `${id_laporan}_${m}`
   const existing = db.matriksData[key]
@@ -514,18 +534,16 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
     if (e.message && e.message !== 'Failed to fetch') throw e
   }
 
-  // Fallback Mock
   const db = getMockDb()
   const lap = db.laporanList.find(l => l.id_laporan === Number(id_laporan))
   if (lap && lap.status_laporan === 'disahkan') {
-    throw new Error('Akses Ditolak (403): Laporan sudah berstatus disahkan dan terkunci (read-only).')
+    throw new Error('Akses Ditolak (403): Laporan sudah berstatus disahkan dan berstatus read-only.')
   }
 
   const key = `${id_laporan}_${m}`
   const totalObj = {}
   let isNihil = true
 
-  // Komputasi total kolom
   payloadBaris.forEach(row => {
     Object.keys(row).forEach(k => {
       if (k !== 'id_jabatan' && k !== 'id_klui' && k !== 'keterangan') {
@@ -552,11 +570,12 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
 
   db.matriksData[key] = savedResult
 
-  // Log audit
+  // Audit log sesuai Bagian 6a PRD (aksi: 'ubah')
   if (!db.logs[id_laporan]) db.logs[id_laporan] = []
   db.logs[id_laporan].push({
-    aksi: 'Diperbarui',
-    catatan: `Modul ${m.toUpperCase()} diperbarui (${payloadBaris.length} baris).`,
+    aksi: 'ubah',
+    tabel_terkait: `rekap_${m}_${m === 'k1' ? 'pegawai' : 'matriks'}`,
+    catatan: `Modul ${m.toUpperCase()} diperbarui (${payloadBaris.length} baris data).`,
     waktu: new Date().toISOString(),
     pengguna: currentUser.value?.nama_pengguna || 'Operator',
   })
@@ -566,7 +585,41 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
 }
 
 // ==========================================
-// 5. EKSPOR EXCEL RESMI DARI BACKEND
+// 5. AGREGASI REKAPITULASI TRIWULAN (FR-DB-05 & Temuan 3)
+// ==========================================
+
+export async function apiGetRekapTriwulan(modul = 'k1', { id_wilayah, tahun, triwulan }) {
+  const m = modul.toLowerCase()
+  try {
+    const res = await fetch(`${BASE_URL}/rekap-triwulan/${m}?id_wilayah=${id_wilayah}&tahun=${tahun}&triwulan=${triwulan}`, {
+      method: 'GET',
+      headers: getHeaders(false),
+    })
+    if (res.ok) {
+      return await res.json()
+    }
+  } catch (e) {}
+
+  // Logika Agregasi Triwulan PRD Database:
+  // K1-K4 (data keadaan) = posisi bulan terakhir triwulan (TW 1: Bulan 3, TW 2: Bulan 6, TW 3: Bulan 9, TW 4: Bulan 12)
+  // K5-K10 (data kegiatan) = jumlah 3 bulan (SUM)
+  const db = getMockDb()
+  const tw = Number(triwulan)
+  const bulanAkhirTW = tw * 3 // 3, 6, 9, 12
+
+  const laporanTarget = db.laporanList.find(
+    l => l.id_wilayah === Number(id_wilayah) && l.tahun === Number(tahun) && l.bulan === bulanAkhirTW
+  )
+
+  if (!laporanTarget) {
+    return { data: [], meta: { id_wilayah, tahun, triwulan, modul: m, apakah_nihil: true } }
+  }
+
+  return await apiGetMatriksModul(laporanTarget.id_laporan, m)
+}
+
+// ==========================================
+// 6. EKSPOR EXCEL BALAI (Temuan 1 & 4)
 // ==========================================
 
 export async function apiUnduhExcelResmi(id_wilayah, tahun, triwulan = null) {

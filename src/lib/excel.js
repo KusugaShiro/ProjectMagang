@@ -1,14 +1,16 @@
 /**
  * Pembuat Berkas Excel untuk Laporan K1 & Rekapitulasi Balai
- * Mendukung download stream backend dan fallback SheetJS lokal di browser.
+ * Selaras dengan PRD Database:
+ * - Mengutamakan stream resmi endpoint backend /api/ekspor/excel
+ * - Fallback SheetJS lokal menyertakan footer tanda tangan wilayah_pengawasan (Aturan Bisnis #5 PRD)
  */
 
 import { apiUnduhExcelResmi } from './api'
 
 export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals }) {
-  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode } = meta
+  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
 
-  // 1. Coba download dari backend jika tersedia
+  // 1. Coba download dari backend resmi jika tersedia
   try {
     const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
     if (successBackend) {
@@ -92,6 +94,25 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
       wsData.push([`${desc.id} = ${desc.text}`])
     })
   }
+
+  // Baris kosong sebelum tanda tangan
+  wsData.push([])
+  wsData.push([])
+
+  // Footer Tanda Tangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
+  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
+  const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
+  const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
+  const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
+
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, 2026`])
+  wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
+  wsData.push([])
+  wsData.push([])
+  wsData.push([])
+  wsData.push(['', namaKepala, '', '', '', '', '', '', '', '', '', '', '', '', namaPembuat])
+  wsData.push(['', nipKepala, '', '', '', '', '', '', '', '', '', '', '', '', nipPembuat])
 
   // Buat Sheet & Workbook
   const ws = XLSX.utils.aoa_to_sheet(wsData)

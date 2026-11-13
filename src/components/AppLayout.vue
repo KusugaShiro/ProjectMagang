@@ -50,39 +50,39 @@ const peranLabel = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col antialiased selection:bg-yellow-400 selection:text-black">
+  <div class="min-h-screen bg-white text-black font-sans flex flex-col antialiased selection:bg-yellow-400 selection:text-black">
 
     <!-- OVERLAY SIDEBAR MOBILE -->
     <div
       v-if="isMobileSidebarOpen"
       @click="closeMobileSidebar"
-      class="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs lg:hidden"
+      class="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs lg:hidden"
     ></div>
 
     <!-- WRAPPER UTAMA -->
     <div class="flex-1 flex overflow-hidden">
 
-      <!-- SIDEBAR KIRI (PUTIH DENGAN AKSEN KUNING & HITAM) -->
+      <!-- SIDEBAR KIRI (PUTIH BERSIH DENGAN TEKS HITAM PEKAT & AKSEN KUNING) -->
       <aside
         :class="[
-          'fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 bg-white border-r-2 border-slate-300 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:translate-x-0',
           isMobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         ]"
       >
         <!-- Header Sidebar -->
-        <div class="p-5 border-b border-slate-200 flex items-center justify-between bg-white">
+        <div class="p-5 border-b-2 border-slate-300 flex items-center justify-between bg-white">
           <div class="flex items-center gap-3">
             <!-- Ikon Perisai SVG (Kuning & Hitam) -->
-            <div class="w-10 h-10 rounded-xl bg-yellow-400 border border-yellow-500/50 flex items-center justify-center text-slate-950 font-black shadow-sm shrink-0">
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <div class="w-10 h-10 rounded-xl bg-yellow-400 border-2 border-black flex items-center justify-center text-black font-black shadow-xs shrink-0">
+              <svg class="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.14 8.78-7 9.88-3.86-1.1-7-5.34-7-9.88V6.3l7-3.12z"/>
               </svg>
             </div>
             <div>
-              <h2 class="text-sm font-black text-slate-950 leading-tight tracking-wide">
+              <h2 class="text-sm font-black text-black leading-tight tracking-wide">
                 Laporan Pengawasan
               </h2>
-              <p class="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">
+              <p class="text-[11px] text-black font-bold leading-tight mt-0.5">
                 Balai Pengawasan Wilayah I Banjarmasin
               </p>
             </div>
@@ -91,16 +91,16 @@ const peranLabel = computed(() => {
           <!-- Tombol Tutup Sidebar di Mobile -->
           <button
             @click="closeMobileSidebar"
-            class="lg:hidden p-1 rounded-lg text-slate-500 hover:text-black hover:bg-slate-100 cursor-pointer"
+            class="lg:hidden p-1 rounded-lg text-black hover:bg-yellow-100 cursor-pointer"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
 
         <!-- Navigasi Menu Sidebar -->
-        <nav class="flex-1 overflow-y-auto p-3 space-y-6 text-xs custom-scrollbar">
+        <nav class="flex-1 overflow-y-auto p-3 space-y-6 text-xs custom-scrollbar bg-white">
 
           <!-- Menu Beranda -->
           <div>
@@ -108,14 +108,14 @@ const peranLabel = computed(() => {
               to="/"
               @click="closeMobileSidebar"
               :class="[
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition font-medium',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition',
                 route.path === '/'
-                  ? 'bg-yellow-400 text-slate-950 font-bold shadow-xs border border-yellow-500/50'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  ? 'bg-yellow-400 text-black font-black shadow-xs border-2 border-black'
+                  : 'text-black font-bold hover:bg-yellow-100 hover:text-black'
               ]"
             >
-              <svg class="w-4 h-4 shrink-0 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+              <svg class="w-4 h-4 shrink-0 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
               </svg>
               <span>Beranda</span>
             </router-link>
@@ -123,7 +123,7 @@ const peranLabel = computed(() => {
 
           <!-- Grup: INPUT LAPORAN -->
           <div>
-            <div class="px-3 mb-2 text-[10px] font-black tracking-wider uppercase text-slate-500">
+            <div class="px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-black border-b border-slate-200 pb-1">
               INPUT LAPORAN
             </div>
             <div class="space-y-1">
@@ -135,21 +135,16 @@ const peranLabel = computed(() => {
                 :class="[
                   'flex items-start gap-2.5 px-3 py-2 rounded-lg transition text-left',
                   route.path === `/input/${item.kode.toLowerCase()}`
-                    ? 'bg-yellow-400 text-slate-950 font-bold shadow-xs border border-yellow-500/50'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                    ? 'bg-yellow-400 text-black font-black shadow-xs border-2 border-black'
+                    : 'text-black font-bold hover:bg-yellow-100 hover:text-black'
                 ]"
               >
                 <!-- Kode Tebal di Kiri -->
-                <span
-                  :class="[
-                    'font-mono font-bold text-xs shrink-0 w-8',
-                    route.path === `/input/${item.kode.toLowerCase()}` ? 'text-black' : 'text-slate-900 font-extrabold'
-                  ]"
-                >
+                <span class="font-mono font-black text-xs shrink-0 w-9 text-black">
                   {{ item.kode }}
                 </span>
                 <!-- Nama Lengkap Termasuk (a), (b), (c) Tidak Terpotong -->
-                <span class="break-words leading-snug">
+                <span class="break-words leading-snug text-black">
                   {{ item.nama }}
                 </span>
               </router-link>
@@ -158,7 +153,7 @@ const peranLabel = computed(() => {
 
           <!-- Grup: ARSIP -->
           <div>
-            <div class="px-3 mb-2 text-[10px] font-black tracking-wider uppercase text-slate-500">
+            <div class="px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-black border-b border-slate-200 pb-1">
               ARSIP
             </div>
             <div class="space-y-1">
@@ -166,14 +161,14 @@ const peranLabel = computed(() => {
                 to="/tersimpan"
                 @click="closeMobileSidebar"
                 :class="[
-                  'flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition font-medium',
+                  'flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition',
                   route.path === '/tersimpan'
-                    ? 'bg-yellow-400 text-slate-950 font-bold shadow-xs border border-yellow-500/50'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                    ? 'bg-yellow-400 text-black font-black shadow-xs border-2 border-black'
+                    : 'text-black font-bold hover:bg-yellow-100 hover:text-black'
                 ]"
               >
-                <svg class="w-4 h-4 shrink-0 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                <svg class="w-4 h-4 shrink-0 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
                 </svg>
                 <span>Laporan Tersimpan</span>
               </router-link>
@@ -183,30 +178,30 @@ const peranLabel = computed(() => {
         </nav>
 
         <!-- Footer Sidebar -->
-        <div class="p-3 border-t border-slate-200 text-[11px] text-slate-500 text-center bg-slate-50">
+        <div class="p-3 border-t-2 border-slate-300 text-[11px] text-black font-bold text-center bg-yellow-50">
           &copy; 2026 UPTD Balai Pengawasan Kalsel I
         </div>
       </aside>
 
       <!-- KONTEN AREA KANAN -->
-      <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div class="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-50">
 
-        <!-- TOP BAR (PUTIH DENGAN BORDER TIPIS) -->
-        <header class="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-xs">
+        <!-- TOP BAR (PUTIH DENGAN TEKS HITAM PEKAT) -->
+        <header class="h-16 bg-white border-b-2 border-slate-300 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-xs">
           <div class="flex items-center gap-3 min-w-0">
             <!-- Tombol Hamburger (Mobile) -->
             <button
               @click="toggleMobileSidebar"
-              class="lg:hidden p-2 rounded-lg text-slate-600 hover:text-black hover:bg-slate-100 cursor-pointer"
+              class="lg:hidden p-2 rounded-lg text-black hover:bg-yellow-100 cursor-pointer"
               aria-label="Buka Menu"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+              <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
 
             <!-- Judul Halaman di Top Bar -->
-            <h1 class="text-sm sm:text-base font-black text-slate-900 truncate">
+            <h1 class="text-sm sm:text-base font-black text-black truncate">
               {{ currentTitle }}
             </h1>
           </div>
@@ -215,28 +210,28 @@ const peranLabel = computed(() => {
           <div class="relative flex items-center gap-3">
             <button
               @click="isAccountMenuOpen = !isAccountMenuOpen"
-              class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-300 hover:border-yellow-500 hover:bg-yellow-50/50 transition cursor-pointer"
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white border-2 border-black hover:bg-yellow-100 transition cursor-pointer shadow-xs"
             >
-              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-300"></div>
               <div class="text-left hidden sm:block">
-                <div class="text-xs font-bold text-slate-900 leading-tight">
+                <div class="text-xs font-black text-black leading-tight">
                   {{ currentUser?.nama_pengguna || 'Pengguna' }}
                 </div>
-                <div class="text-[10px] text-amber-700 font-semibold leading-tight">
+                <div class="text-[10px] text-black font-bold leading-tight">
                   {{ peranLabel }}
                 </div>
               </div>
-              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
               </svg>
             </button>
 
             <!-- DROPDOWN GANTI AKUN -->
             <div
               v-if="isAccountMenuOpen"
-              class="absolute right-0 top-12 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 z-50 text-xs"
+              class="absolute right-0 top-12 w-64 bg-white border-2 border-black rounded-xl shadow-2xl p-2 z-50 text-xs"
             >
-              <div class="px-3 py-2 border-b border-slate-100 text-slate-500 text-[11px] font-medium">
+              <div class="px-3 py-2 border-b border-slate-200 text-black text-[11px] font-black">
                 Ganti Akun Pengujian:
               </div>
               <div class="space-y-1 mt-1">
@@ -247,12 +242,12 @@ const peranLabel = computed(() => {
                   :class="[
                     'w-full text-left px-3 py-2 rounded-lg transition flex flex-col cursor-pointer',
                     currentUser?.email === acc.email
-                      ? 'bg-yellow-400 text-slate-950 font-bold'
-                      : 'hover:bg-slate-100 text-slate-700 hover:text-slate-950'
+                      ? 'bg-yellow-400 text-black font-black border border-black'
+                      : 'hover:bg-yellow-50 text-black font-bold'
                   ]"
                 >
-                  <span class="text-xs">{{ acc.nama_pengguna }}</span>
-                  <span class="text-[10px] text-slate-500 font-mono">
+                  <span class="text-xs text-black">{{ acc.nama_pengguna }}</span>
+                  <span class="text-[10px] text-black font-mono font-semibold">
                     {{ acc.peran }} {{ acc.wilayah ? `(${acc.wilayah.kode_wilayah})` : '(Global)' }}
                   </span>
                 </button>

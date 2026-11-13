@@ -346,38 +346,38 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
 
-    <!-- Pesan Peringatan Error (Merah) -->
-    <div v-if="errorMessage" class="p-4 rounded-xl bg-red-50 border border-red-300 text-red-800 text-sm flex items-start gap-3 shadow-xs">
+    <!-- Pesan Peringatan Error (Merah Kuat & Teks Hitam) -->
+    <div v-if="errorMessage" class="p-4 rounded-xl bg-red-100 border-2 border-red-500 text-black text-sm flex items-start gap-3 shadow-xs">
       <svg class="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
       </svg>
-      <div class="font-medium">{{ errorMessage }}</div>
+      <div class="font-bold text-black">{{ errorMessage }}</div>
     </div>
 
-    <!-- Pesan Sukses (Kuning/Hijau) -->
-    <div v-if="successMessage" class="p-4 rounded-xl bg-amber-50 border border-yellow-400 text-amber-950 text-sm flex items-center gap-3 shadow-xs">
-      <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    <!-- Pesan Sukses (Kuning Cerah & Teks Hitam) -->
+    <div v-if="successMessage" class="p-4 rounded-xl bg-yellow-300 border-2 border-black text-black text-sm flex items-center gap-3 shadow-xs">
+      <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
-      <div class="font-bold">{{ successMessage }}</div>
+      <div class="font-black text-black">{{ successMessage }}</div>
     </div>
 
-    <!-- Pesan Info Status -->
-    <div v-if="infoMessage" class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm flex items-center gap-3 shadow-xs">
-      <svg class="w-5 h-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    <!-- Pesan Info Status (Kuning Lembut & Teks Hitam) -->
+    <div v-if="infoMessage" class="p-4 rounded-xl bg-yellow-50 border-2 border-yellow-400 text-black text-sm flex items-center gap-3 shadow-xs font-bold">
+      <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
-      <div>{{ infoMessage }}</div>
+      <div class="text-black">{{ infoMessage }}</div>
     </div>
 
     <!-- KARTU 1: PILIH WILAYAH DAN PERIODE -->
-    <section class="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+    <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-base font-bold text-slate-950 flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+        <h2 class="text-base font-black text-black flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-yellow-400 border border-black"></span>
           1. Pilih wilayah dan periode
         </h2>
-        <span class="text-xs text-slate-500 font-medium">
+        <span class="text-xs text-black font-bold">
           Standar REST API Laravel (Bulan 1-12 & Tahun)
         </span>
       </div>
@@ -385,25 +385,25 @@ onMounted(() => {
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Wilayah -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Wilayah Pengawasan</label>
+          <label class="block text-xs font-black text-black mb-1.5">Wilayah Pengawasan</label>
           <select
             v-model.number="filter.id_wilayah"
             :disabled="isOperator"
-            class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 disabled:bg-slate-100 disabled:text-slate-500"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-black disabled:bg-slate-200 disabled:text-black"
           >
             <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
               {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
             </option>
           </select>
-          <p v-if="isOperator" class="text-[11px] text-amber-700 font-medium mt-1">Terkunci untuk operator kabupaten</p>
+          <p v-if="isOperator" class="text-[11px] text-black font-bold mt-1">Terkunci untuk operator kabupaten</p>
         </div>
 
         <!-- Bulan -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Bulan Laporan</label>
+          <label class="block text-xs font-black text-black mb-1.5">Bulan Laporan</label>
           <select
             v-model.number="filter.bulan"
-            class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-black"
           >
             <option v-for="b in bulanList" :key="b.value" :value="b.value">
               {{ b.value }}. {{ b.label }}
@@ -413,32 +413,32 @@ onMounted(() => {
 
         <!-- Triwulan (Auto-calculated) -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Triwulan (Otomatis)</label>
-          <div class="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm font-bold flex items-center justify-between">
+          <label class="block text-xs font-black text-black mb-1.5">Triwulan (Otomatis)</label>
+          <div class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm font-black flex items-center justify-between">
             <span>Triwulan {{ hitungTriwulan }}</span>
-            <span class="text-[10px] px-2 py-0.5 rounded bg-yellow-400 text-slate-950 font-black">TW {{ hitungTriwulan }}</span>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-yellow-400 text-black border border-black font-black">TW {{ hitungTriwulan }}</span>
           </div>
         </div>
 
         <!-- Tahun -->
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1.5">Tahun Anggaran</label>
+          <label class="block text-xs font-black text-black mb-1.5">Tahun Anggaran</label>
           <input
             v-model.number="filter.tahun"
             type="number"
             min="2026"
             max="2100"
-            class="w-full bg-white border border-slate-300 text-slate-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 font-mono"
+            class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-black font-mono font-black"
           />
         </div>
       </div>
 
-      <!-- Tombol Aksi Buka Form (Kuning) -->
+      <!-- Tombol Aksi Buka Form (Kuning & Hitam) -->
       <div class="mt-5 flex justify-end">
         <button
           @click="bukaFormIsian"
           :disabled="isLoading"
-          class="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-slate-950 font-bold text-sm rounded-lg shadow-sm border border-yellow-500/50 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          class="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-black font-black text-sm rounded-lg shadow-xs border-2 border-black transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
         >
           <svg v-if="isLoading" class="animate-spin w-4 h-4 text-black" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -453,18 +453,18 @@ onMounted(() => {
     </section>
 
     <!-- KARTU 2: TABEL FORM ISIAN -->
-    <section v-if="isFormOpen && activeLaporan" class="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+    <section v-if="isFormOpen && activeLaporan" class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
       
       <!-- Header Kartu & Status Workflow -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b-2 border-slate-300 gap-3">
         <div>
-          <h2 class="text-base font-black text-slate-950 flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full" :class="isReadOnly ? 'bg-emerald-500' : 'bg-yellow-400'"></span>
+          <h2 class="text-base font-black text-black flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full" :class="isReadOnly ? 'bg-emerald-500' : 'bg-yellow-400 border border-black'"></span>
             2. Isi data ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5 font-medium">
-            ID Dokumen: <span class="font-mono font-bold text-slate-900">#{{ activeLaporan.id_laporan }}</span> &bull; 
-            Triwulan: <span class="font-mono font-bold text-slate-900">TW {{ activeLaporan.triwulan }}</span>
+          <p class="text-xs text-black mt-0.5 font-bold">
+            ID Dokumen: <span class="font-mono font-black text-black">#{{ activeLaporan.id_laporan }}</span> &bull; 
+            Triwulan: <span class="font-mono font-black text-black">TW {{ activeLaporan.triwulan }}</span>
           </p>
         </div>
 
@@ -473,67 +473,67 @@ onMounted(() => {
           <!-- Status Draf (Kuning) -->
           <div
             v-if="activeLaporan.status_laporan === 'draf'"
-            class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-amber-950 border border-yellow-300 flex items-center gap-1.5"
+            class="px-3 py-1 rounded-full text-xs font-black bg-yellow-300 text-black border-2 border-black flex items-center gap-1.5"
           >
-            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-black animate-pulse"></span>
             Status: DRAF (Dapat Diedit)
           </div>
 
-          <!-- Status Terkirim (Biru) -->
+          <!-- Status Terkirim (Putih border hitam pekat) -->
           <div
             v-else-if="activeLaporan.status_laporan === 'terkirim'"
-            class="px-3 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-950 border border-sky-300 flex items-center gap-1.5"
+            class="px-3 py-1 rounded-full text-xs font-black bg-white text-black border-2 border-black flex items-center gap-1.5"
           >
-            <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-black"></span>
             Status: TERKIRIM (Menunggu Pengesahan)
           </div>
 
-          <!-- Status Disahkan (Hijau / Kunci) -->
+          <!-- Status Disahkan (Hijau Terang border hitam) -->
           <div
             v-else-if="activeLaporan.status_laporan === 'disahkan'"
-            class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-300 flex items-center gap-1.5"
+            class="px-3 py-1 rounded-full text-xs font-black bg-emerald-200 text-black border-2 border-black flex items-center gap-1.5"
           >
-            <svg class="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            <svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
             DISAHKAN (Terkunci / Read-Only)
           </div>
 
-          <!-- Tombol Kirim (Kuning/Biru) -->
+          <!-- Tombol Kirim (Putih/Kuning border hitam) -->
           <button
             v-if="activeLaporan.status_laporan === 'draf' && (isOperator || isAdmin)"
             @click="aksiKirim"
             :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-slate-950 border border-yellow-500/50 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-xs"
+            class="px-3 py-1 bg-yellow-400 hover:bg-yellow-300 text-black border-2 border-black rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            <svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
             </svg>
             Kirim ke Kepala Balai
           </button>
 
-          <!-- Tombol Sahkan (Hitam) -->
+          <!-- Tombol Sahkan (Hitam teks Kuning) -->
           <button
             v-if="activeLaporan.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
             @click="aksiSahkan"
             :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-xs"
+            class="px-3 py-1 bg-black hover:bg-slate-800 text-yellow-300 border-2 border-black rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
           >
-            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <svg class="w-3.5 h-3.5 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             Sahkan Laporan
           </button>
 
-          <!-- Tombol Kembalikan ke Draf (Merah/Oranye) -->
+          <!-- Tombol Kembalikan ke Draf (Merah border hitam) -->
           <button
             v-if="(activeLaporan.status_laporan === 'terkirim' || activeLaporan.status_laporan === 'disahkan') && (isKepalaBalai || isAdmin)"
             @click="aksiKembalikan"
             :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
+            class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-950 border-2 border-red-500 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
             </svg>
             Kembalikan ke Draf
           </button>
@@ -541,70 +541,70 @@ onMounted(() => {
       </div>
 
       <!-- Banner jika terkunci (Read-Only) -->
-      <div v-if="isReadOnly" class="p-3 rounded-lg bg-yellow-50 border border-yellow-300 text-amber-950 text-xs flex items-center gap-2">
-        <svg class="w-4 h-4 shrink-0 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      <div v-if="isReadOnly" class="p-3.5 rounded-lg bg-yellow-100 border-2 border-black text-black text-xs flex items-center gap-2 font-bold">
+        <svg class="w-5 h-5 shrink-0 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
         </svg>
-        <span>
+        <span class="text-black">
           Laporan telah disahkan pada <strong>{{ activeLaporan.tanggal_pengesahan }}</strong>. Modul K1 s.d. K10 berstatus <strong>read-only</strong> dan perubahan data dikunci (HTTP 403 Forbidden).
         </span>
       </div>
 
       <!-- Wadah scroll tabel saja, tidak membuat halaman scroll mendatar -->
-      <div class="overflow-x-auto rounded-lg border border-slate-300 max-w-full shadow-xs">
+      <div class="overflow-x-auto rounded-lg border-2 border-black max-w-full shadow-xs">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <!-- Header Baris 1 (Hitam Elegan dengan teks putih) -->
-            <tr class="bg-slate-900 text-white border-b border-slate-800">
+            <tr class="bg-black text-white border-b-2 border-black">
               <th
                 rowspan="2"
-                class="p-2.5 font-bold text-center sticky left-0 z-20 bg-slate-900 border-r border-slate-800 w-12 min-w-[48px]"
+                class="p-2.5 font-black text-center sticky left-0 z-20 bg-black text-white border-r border-slate-700 w-12 min-w-[48px]"
               >
                 No
               </th>
               <th
                 rowspan="2"
-                class="p-2.5 font-bold sticky left-12 z-20 bg-slate-900 border-r border-slate-800 w-48 min-w-[190px]"
+                class="p-2.5 font-black sticky left-12 z-20 bg-black text-white border-r border-slate-700 w-48 min-w-[190px]"
               >
                 Jabatan
               </th>
               <th
                 rowspan="2"
-                class="p-2.5 font-bold text-center border-r border-slate-800 w-16 min-w-[64px]"
+                class="p-2.5 font-black text-center border-r border-slate-700 w-16 min-w-[64px]"
               >
                 Umum
               </th>
               <th
                 colspan="11"
-                class="p-2 font-bold text-center border-r border-slate-800 bg-slate-800 text-yellow-300"
+                class="p-2 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300"
               >
                 Spesialis
               </th>
               <th
                 rowspan="2"
-                class="p-2.5 font-black text-center border-r border-slate-800 bg-yellow-400 text-slate-950 w-20 min-w-[80px]"
+                class="p-2.5 font-black text-center border-r border-slate-700 bg-yellow-400 text-black w-20 min-w-[80px]"
               >
                 Jumlah
               </th>
               <th
                 rowspan="2"
-                class="p-2.5 font-bold text-center border-r border-slate-800 w-16 min-w-[64px]"
+                class="p-2.5 font-black text-center border-r border-slate-700 w-16 min-w-[64px]"
               >
                 PPNS
               </th>
               <th
                 rowspan="2"
-                class="p-2.5 font-bold w-40 min-w-[160px]"
+                class="p-2.5 font-black w-40 min-w-[160px]"
               >
                 Ket.
               </th>
             </tr>
             <!-- Header Baris 2 (Spesialis 1-11) -->
-            <tr class="bg-slate-800 text-slate-200 border-b border-slate-700">
+            <tr class="bg-slate-900 text-yellow-300 border-b-2 border-black">
               <th
                 v-for="sf in config.spesialisFields"
                 :key="sf.key"
-                class="p-1.5 font-bold text-center border-r border-slate-700 w-12 min-w-[48px] text-yellow-300"
+                class="p-1.5 font-black text-center border-r border-slate-700 w-12 min-w-[48px] text-yellow-300"
                 :title="sf.text"
               >
                 {{ sf.label }}
@@ -612,56 +612,56 @@ onMounted(() => {
             </tr>
           </thead>
 
-          <tbody class="divide-y divide-slate-200 text-slate-900">
+          <tbody class="divide-y divide-slate-300 text-black">
             <template v-for="(row, rIdx) in config.rows" :key="row.id_jabatan || `grp-${rIdx}`">
               
-              <!-- Tipe Baris Grup (Terampil/SLA & Ahli/S1-S2) - Aksen Kuning Lembut -->
-              <tr v-if="row.isGroup" class="bg-yellow-50 font-bold text-amber-950 border-b border-yellow-200">
-                <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-50 border-r border-yellow-200">
+              <!-- Tipe Baris Grup (Terampil/SLA & Ahli/S1-S2) - Kuning Terang Teks Hitam Pekat -->
+              <tr v-if="row.isGroup" class="bg-yellow-200 font-black text-black border-b-2 border-yellow-400">
+                <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-200 border-r border-yellow-400 text-black font-black">
                   {{ row.no }}
                 </td>
-                <td class="p-2.5 sticky left-12 z-10 bg-yellow-50 border-r border-yellow-200">
+                <td class="p-2.5 sticky left-12 z-10 bg-yellow-200 border-r border-yellow-400 text-black font-black">
                   {{ row.label }}
                 </td>
-                <td class="p-2 text-center text-slate-400 border-r border-yellow-200">-</td>
+                <td class="p-2 text-center text-black font-black border-r border-yellow-400">-</td>
                 <td
                   v-for="sf in config.spesialisFields"
                   :key="`grp-${row.no}-${sf.key}`"
-                  class="p-2 text-center text-slate-400 border-r border-yellow-200"
+                  class="p-2 text-center text-black font-black border-r border-yellow-400"
                 >
                   -
                 </td>
-                <td class="p-2 text-center text-slate-400 border-r border-yellow-200 bg-amber-100/60">-</td>
-                <td class="p-2 text-center text-slate-400 border-r border-yellow-200">-</td>
-                <td class="p-2 text-center text-slate-400">-</td>
+                <td class="p-2 text-center text-black font-black border-r border-yellow-400 bg-yellow-300">-</td>
+                <td class="p-2 text-center text-black font-black border-r border-yellow-400">-</td>
+                <td class="p-2 text-center text-black font-black">-</td>
               </tr>
 
               <!-- Tipe Baris Data Isian -->
-              <tr v-else class="hover:bg-slate-50 transition">
+              <tr v-else class="hover:bg-yellow-50/50 transition">
                 <!-- No (Sticky 1) -->
-                <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r border-slate-200 text-slate-500 font-mono font-bold">
+                <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black">
                   {{ row.no }}
                 </td>
                 <!-- Jabatan (Sticky 2) -->
-                <td class="p-2.5 sticky left-12 z-10 bg-white border-r border-slate-200 whitespace-nowrap font-medium text-slate-900">
+                <td class="p-2.5 sticky left-12 z-10 bg-white border-r-2 border-slate-300 whitespace-nowrap font-bold text-black">
                   {{ row.label }}
                 </td>
                 <!-- Umum -->
-                <td class="p-1 border-r border-slate-200">
+                <td class="p-1 border-r border-slate-300">
                   <input
                     type="number"
                     min="0"
                     :disabled="isReadOnly"
                     :value="rowsData[row.id_jabatan]?.jml_umum"
                     @input="onNumberInput(row.id_jabatan, 'jml_umum', $event)"
-                    class="w-full text-center bg-white border border-slate-300 text-slate-900 rounded py-1 px-1 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 disabled:bg-slate-100 disabled:text-slate-400 font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
                 <!-- Spesialis 1 - 11 -->
                 <td
                   v-for="sf in config.spesialisFields"
                   :key="`data-${row.id_jabatan}-${sf.key}`"
-                  class="p-1 border-r border-slate-200"
+                  class="p-1 border-r border-slate-300"
                 >
                   <input
                     type="number"
@@ -669,22 +669,22 @@ onMounted(() => {
                     :disabled="isReadOnly"
                     :value="rowsData[row.id_jabatan]?.[sf.key]"
                     @input="onNumberInput(row.id_jabatan, sf.key, $event)"
-                    class="w-full text-center bg-white border border-slate-300 text-slate-900 rounded py-1 px-1 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 disabled:bg-slate-100 disabled:text-slate-400 font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
-                <!-- Jumlah (Otomatis & Aksen Kuning Emas) -->
-                <td class="p-2 text-center font-black text-amber-950 bg-yellow-100 border-r border-slate-200 font-mono">
+                <!-- Jumlah (Otomatis & Kuning Emas Bold) -->
+                <td class="p-2 text-center font-black text-black bg-yellow-300 border-r-2 border-slate-300 font-mono text-sm">
                   {{ summaryTotals.rowTotals[row.id_jabatan] ?? 0 }}
                 </td>
                 <!-- PPNS -->
-                <td class="p-1 border-r border-slate-200">
+                <td class="p-1 border-r border-slate-300">
                   <input
                     type="number"
                     min="0"
                     :disabled="isReadOnly"
                     :value="rowsData[row.id_jabatan]?.jml_ppns"
                     @input="onNumberInput(row.id_jabatan, 'jml_ppns', $event)"
-                    class="w-full text-center bg-white border border-slate-300 text-slate-900 rounded py-1 px-1 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 disabled:bg-slate-100 disabled:text-slate-400 font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
                 <!-- Keterangan -->
@@ -695,37 +695,37 @@ onMounted(() => {
                     :disabled="isReadOnly"
                     v-model="rowsData[row.id_jabatan].keterangan"
                     placeholder="Keterangan..."
-                    class="w-full bg-white border border-slate-300 text-slate-900 rounded py-1 px-2 focus:outline-none focus:border-yellow-500 text-xs disabled:bg-slate-100 disabled:text-slate-400"
+                    class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-black text-xs disabled:bg-slate-100 disabled:text-black"
                   />
                 </td>
               </tr>
             </template>
 
             <!-- BARIS JUMLAH TOTAL (KUNING HITAM BOLD) -->
-            <tr class="bg-yellow-400 font-black text-slate-950 border-t-2 border-yellow-500">
-              <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-400 border-r border-yellow-500/50">
+            <tr class="bg-yellow-400 font-black text-black border-t-4 border-black">
+              <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-400 border-r border-black font-black">
                 -
               </td>
-              <td class="p-2.5 sticky left-12 z-10 bg-yellow-400 border-r border-yellow-500/50 tracking-wider uppercase">
+              <td class="p-2.5 sticky left-12 z-10 bg-yellow-400 border-r border-black tracking-wider uppercase font-black text-black">
                 JUMLAH
               </td>
-              <td class="p-2.5 text-center border-r border-yellow-500/50 font-mono">
+              <td class="p-2.5 text-center border-r border-black font-mono font-black text-black">
                 {{ summaryTotals.colTotals.jml_umum }}
               </td>
               <td
                 v-for="sf in config.spesialisFields"
                 :key="`tot-${sf.key}`"
-                class="p-2.5 text-center border-r border-yellow-500/50 font-mono"
+                class="p-2.5 text-center border-r border-black font-mono font-black text-black"
               >
                 {{ summaryTotals.colTotals[sf.key] }}
               </td>
-              <td class="p-2.5 text-center bg-slate-950 text-yellow-400 border-r border-slate-800 text-sm font-mono font-black">
+              <td class="p-2.5 text-center bg-black text-yellow-300 border-r border-black text-base font-mono font-black">
                 {{ summaryTotals.grandTotal }}
               </td>
-              <td class="p-2.5 text-center border-r border-yellow-500/50 font-mono">
+              <td class="p-2.5 text-center border-r border-black font-mono font-black text-black">
                 {{ summaryTotals.colTotals.jml_ppns }}
               </td>
-              <td class="p-2.5 text-center text-slate-800">
+              <td class="p-2.5 text-center text-black font-black">
                 -
               </td>
             </tr>
@@ -735,10 +735,10 @@ onMounted(() => {
 
       <!-- EMPAT TOMBOL AKSI -->
       <div class="pt-4 flex flex-wrap items-center justify-end gap-3">
-        <!-- Tombol Tutup (Netral) -->
+        <!-- Tombol Tutup (Putih border hitam) -->
         <button
           @click="tutupForm"
-          class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs sm:text-sm rounded-lg border border-slate-300 transition cursor-pointer"
+          class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-black transition cursor-pointer"
         >
           Tutup
         </button>
@@ -747,7 +747,7 @@ onMounted(() => {
         <button
           @click="resetKeNol"
           :disabled="isReadOnly"
-          class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs sm:text-sm rounded-lg border border-red-300 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-950 font-black text-xs sm:text-sm rounded-lg border-2 border-red-600 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Reset ke nol
         </button>
@@ -755,10 +755,10 @@ onMounted(() => {
         <!-- Tombol Download Excel (Hijau/Emerald) -->
         <button
           @click="downloadExcel"
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-2 border-emerald-800"
         >
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
           </svg>
           Download Excel
         </button>
@@ -767,7 +767,7 @@ onMounted(() => {
         <button
           @click="simpan"
           :disabled="isLoading || isReadOnly"
-          class="px-5 py-2 bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm rounded-lg shadow-sm border border-yellow-500/50 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          class="px-5 py-2 bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-black font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-black transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <svg v-if="isLoading" class="animate-spin w-4 h-4 text-black" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -781,14 +781,14 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- KARTU 3: KETERANGAN KOLOM SPESIALIS (PUTIH DENGAN AKSEN KUNING) -->
+    <!-- KARTU 3: KETERANGAN KOLOM SPESIALIS (PUTIH DENGAN TEKS HITAM & AKSEN KUNING) -->
     <section
       v-if="config.specialistDescriptions && config.specialistDescriptions.length > 0"
-      class="bg-white border border-slate-200 rounded-xl p-5 shadow-xs"
+      class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs"
     >
-      <h3 class="text-sm font-bold text-slate-950 mb-3 flex items-center gap-2">
-        <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      <h3 class="text-sm font-black text-black mb-3 flex items-center gap-2">
+        <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         Keterangan kolom spesialis:
       </h3>
@@ -796,12 +796,12 @@ onMounted(() => {
         <div
           v-for="desc in config.specialistDescriptions"
           :key="desc.id"
-          class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-700 flex items-start gap-2"
+          class="bg-white border-2 border-slate-300 rounded-lg p-2.5 text-black flex items-start gap-2 shadow-xs"
         >
-          <span class="inline-flex items-center justify-center w-5 h-5 rounded bg-yellow-400 text-slate-950 font-black text-[11px] shrink-0 border border-yellow-500/50">
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded bg-yellow-400 text-black font-black text-[11px] shrink-0 border border-black">
             {{ desc.id }}
           </span>
-          <span class="leading-relaxed text-slate-900 font-medium">{{ desc.text }}</span>
+          <span class="leading-relaxed text-black font-bold">{{ desc.text }}</span>
         </div>
       </div>
     </section>

@@ -2,10 +2,16 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formList } from '../forms'
+import {
+  currentUser,
+  SEED_ACCOUNTS,
+  switchAccount,
+} from '../lib/auth'
 
 const route = useRoute()
 const router = useRouter()
 const isMobileSidebarOpen = ref(false)
+const isAccountMenuOpen = ref(false)
 
 function toggleMobileSidebar() {
   isMobileSidebarOpen.value = !isMobileSidebarOpen.value
@@ -15,10 +21,11 @@ function closeMobileSidebar() {
   isMobileSidebarOpen.value = false
 }
 
-// Cek rute aktif untuk styling link
-function isActiveRoute(path) {
-  if (path === '/') return route.path === '/'
-  return route.path === path || route.path.startsWith(path + '/')
+function pilihAkun(email) {
+  switchAccount(email)
+  isAccountMenuOpen.value = false
+  // Reload current route data
+  router.go(0)
 }
 
 const currentTitle = computed(() => {
@@ -30,6 +37,16 @@ const currentTitle = computed(() => {
     return found ? `${found.kode} - ${found.nama}` : `Form ${kode}`
   }
   return 'Laporan Pengawasan'
+})
+
+const peranLabel = computed(() => {
+  const p = currentUser.value?.peran
+  if (p === 'admin') return 'Administrator'
+  if (p === 'kepala_balai') return 'Kepala Balai'
+  if (p === 'operator_kabupaten') {
+    return currentUser.value?.id_wilayah === 1 ? 'Operator BJM' : 'Operator Batola'
+  }
+  return 'Pengguna'
 })
 </script>
 
@@ -168,7 +185,7 @@ const currentTitle = computed(() => {
 
         <!-- Footer Sidebar -->
         <div class="p-3 border-t border-[#1B2A4A] text-[11px] text-[#9AA8C7] text-center">
-          &copy; 2026 Pengawasan Wilayah I
+          &copy; 2026 UPTD Balai Pengawasan Kalsel I
         </div>
       </aside>
 
@@ -178,7 +195,7 @@ const currentTitle = computed(() => {
         <!-- TOP BAR -->
         <header class="h-16 bg-[#081331]/90 backdrop-blur-md border-b border-[#1B2A4A] px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
           <div class="flex items-center gap-3 min-w-0">
-            <!-- Tombol Hamburger (Hanya HP/Tablet) -->
+            <!-- Tombol Hamburger (Mobile) -->
             <button
               @click="toggleMobileSidebar"
               class="lg:hidden p-2 rounded-lg text-[#9AA8C7] hover:text-white hover:bg-[#0C1730] cursor-pointer"
@@ -195,9 +212,53 @@ const currentTitle = computed(() => {
             </h1>
           </div>
 
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-[#9AA8C7] hidden sm:inline-block">Wilayah I Banjarmasin</span>
-            <div class="w-2 h-2 rounded-full bg-emerald-500" title="Sistem Aktif"></div>
+          <!-- USER SESI & ROLE SWITCHER (SESUAI DOKUMEN API RBAC HAL 14) -->
+          <div class="relative flex items-center gap-3">
+            <button
+              @click="isAccountMenuOpen = !isAccountMenuOpen"
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-[#0C1730] border border-[#1B2A4A] hover:border-blue-500/50 transition cursor-pointer"
+            >
+              <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+              <div class="text-left hidden sm:block">
+                <div class="text-xs font-semibold text-[#E6ECF8] leading-tight">
+                  {{ currentUser?.nama_pengguna || 'Pengguna' }}
+                </div>
+                <div class="text-[10px] text-sky-400 leading-tight">
+                  {{ peranLabel }}
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-[#9AA8C7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+
+            <!-- DROPDOWN GANTI AKUN SEEDER API -->
+            <div
+              v-if="isAccountMenuOpen"
+              class="absolute right-0 top-12 w-64 bg-[#0C1730] border border-[#1B2A4A] rounded-xl shadow-2xl p-2 z-50 text-xs"
+            >
+              <div class="px-3 py-2 border-b border-[#1B2A4A] text-[#9AA8C7] text-[11px]">
+                Ganti Akun Pengujian (Seeder API Hal 14):
+              </div>
+              <div class="space-y-1 mt-1">
+                <button
+                  v-for="acc in SEED_ACCOUNTS"
+                  :key="acc.email"
+                  @click="pilihAkun(acc.email)"
+                  :class="[
+                    'w-full text-left px-3 py-2 rounded-lg transition flex flex-col cursor-pointer',
+                    currentUser?.email === acc.email
+                      ? 'bg-[#14306B] text-white font-semibold'
+                      : 'hover:bg-[#081331] text-[#9AA8C7] hover:text-[#E6ECF8]'
+                  ]"
+                >
+                  <span class="text-xs">{{ acc.nama_pengguna }}</span>
+                  <span class="text-[10px] text-sky-300 font-mono">
+                    {{ acc.peran }} {{ acc.wilayah ? `(${acc.wilayah.kode_wilayah})` : '(Global)' }}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 

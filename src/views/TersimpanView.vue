@@ -1,8 +1,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { daftarLaporan, hapusLaporan } from '../lib/api'
-import { getFormMeta } from '../forms'
+import {
+  apiGetDaftarLaporan,
+  apiHapusLaporan,
+  apiKirimLaporan,
+  apiSahkanLaporan,
+  apiKembalikanLaporan,
+  apiGetLaporanLog,
+} from '../lib/api'
+import {
+  currentUser,
+  isOperator,
+  isKepalaBalai,
+  isAdmin,
+} from '../lib/auth'
 
 const router = useRouter()
 const items = ref([])
@@ -10,15 +22,26 @@ const isLoading = ref(true)
 const errorMessage = ref('')
 const feedbackMessage = ref('')
 
-// State modal konfirmasi hapus buatan sendiri
+// State Modal Konfirmasi Hapus
 const isConfirmOpen = ref(false)
 const itemToDelete = ref(null)
+
+// State Modal Audit Trail Log
+const isLogOpen = ref(false)
+const activeLogs = ref([])
+const activeLogTitle = ref('')
+const isLogLoading = ref(false)
+
+const bulanNames = [
+  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+]
 
 async function muatDaftar() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    items.value = await daftarLaporan()
+    items.value = await apiGetDaftarLaporan()
   } catch (err) {
     errorMessage.value = 'Gagal memuat arsip laporan: ' + (err.message || err)
   } finally {
@@ -28,17 +51,20 @@ async function muatDaftar() {
 
 function bukaLaporan(item) {
   router.push({
-    path: `/input/${item.kode.toLowerCase()}`,
+    path: '/input/k1',
     query: {
-      wilayah: item.wilayah,
-      jenis: item.jenis,
-      periode: item.periode,
+      id_wilayah: item.id_wilayah,
+      bulan: item.bulan,
       tahun: item.tahun,
     },
   })
 }
 
 function mintaKonfirmasiHapus(item) {
+  if (item.status_laporan === 'disahkan') {
+    alert('Laporan yang sudah berstatus disahkan tidak dapat dihapus.')
+    return
+  }
   itemToDelete.value = item
   isConfirmOpen.value = true
 }
@@ -55,14 +81,8 @@ async function prosesHapus() {
   isLoading.value = true
 
   try {
-    await hapusLaporan({
-      kode: target.kode,
-      wilayah: target.wilayah,
-      jenis: target.jenis,
-      periode: target.periode,
-      tahun: target.tahun,
-    })
-    feedbackMessage.value = `Laporan ${target.kode} (${target.wilayah} - ${target.periode} ${target.tahun}) berhasil dihapus.`
+    await apiHapusLaporan(target.id_laporan)
+    feedbackMessage.value = `Laporan #${target.id_laporan} (${target.wilayah?.nama_kabupaten_kota} - ${bulanNames[target.bulan]} ${target.tahun}) berhasil dihapus.`
     setTimeout(() => {
       feedbackMessage.value = ''
     }, 4000)
@@ -72,6 +92,54 @@ async function prosesHapus() {
   } finally {
     isLoading.value = false
     itemToDelete.value = null
+  }
+}
+
+// Aksi Alur Status dari Daftar
+async function prosesKirim(item) {
+  if (!confirm(`Kirim laporan #${item.id_laporan} ke Kepala Balai?`)) return
+  try {
+    await apiKirimLaporan(item.id_laporan)
+    feedbackMessage.value = `Laporan #${item.id_laporan} berhasil dikirim ke Kepala Balai.`
+    await muatDaftar()
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal mengirim laporan.'
+  }
+}
+
+async function prosesSahkan(item) {
+  if (!confirm(`Sahkan laporan #${item.id_laporan}? Data akan dikunci.`)) return
+  try {
+    await apiSahkanLaporan(item.id_laporan)
+    feedbackMessage.value = `Laporan #${item.id_laporan} telah disahkan dan dikunci.`
+    await muatDaftar()
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal mengesahkan laporan.'
+  }
+}
+
+async function prosesKembalikan(item) {
+  if (!confirm(`Kembalikan laporan #${item.id_laporan} ke draf?`)) return
+  try {
+    await apiKembalikanLaporan(item.id_laporan)
+    feedbackMessage.value = `Laporan #${item.id_laporan} dikembalikan ke status draf.`
+    await muatDaftar()
+  } catch (err) {
+    errorMessage.value = err.message || 'Gagal mengembalikan laporan.'
+  }
+}
+
+// Buka Modal Audit Log
+async function lihatLog(item) {
+  activeLogTitle.value = `Audit Log #${item.id_laporan} - ${item.wilayah?.nama_kabupaten_kota} (${bulanNames[item.bulan]} ${item.tahun})`
+  isLogOpen.value = true
+  isLogLoading.value = true
+  try {
+    activeLogs.value = await apiGetLaporanLog(item.id_laporan)
+  } catch (err) {
+    activeLogs.value = []
+  } finally {
+    isLogLoading.value = false
   }
 }
 
@@ -102,7 +170,7 @@ onMounted(() => {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h1 class="text-xl sm:text-2xl font-bold text-[#E6ECF8]">Laporan Tersimpan</h1>
-        <p class="text-xs sm:text-sm text-[#9AA8C7]">Daftar seluruh laporan pengawasan yang telah tersimpan dalam sistem.</p>
+        <p class="text-xs sm:text-sm text-[#9AA8C7]">Daftar dokumen laporan bulanan dan status pengesahan (UPTD Balai Wilayah I).</p>
       </div>
 
       <button
@@ -133,14 +201,14 @@ onMounted(() => {
       {{ errorMessage }}
     </div>
 
-    <!-- Kartu Konten Tabel Laporan Tersimpan -->
+    <!-- Tabel Dokumen Laporan Bulanan -->
     <section class="bg-[#0C1730] border border-[#1B2A4A] rounded-xl p-5 shadow-lg">
       <div v-if="isLoading" class="py-16 text-center text-[#9AA8C7]">
         <svg class="animate-spin w-8 h-8 text-blue-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
         </svg>
-        <p class="text-sm">Memuat arsip laporan...</p>
+        <p class="text-sm">Memuat dokumen laporan...</p>
       </div>
 
       <!-- Jika Kosong -->
@@ -150,8 +218,8 @@ onMounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
           </svg>
         </div>
-        <p class="text-sm font-medium text-[#E6ECF8] mb-1">Belum ada laporan tersimpan</p>
-        <p class="text-xs text-[#9AA8C7] mb-4">Silakan buat dan simpan laporan pertama Anda melalui menu input.</p>
+        <p class="text-sm font-medium text-[#E6ECF8] mb-1">Belum ada dokumen laporan bulanan</p>
+        <p class="text-xs text-[#9AA8C7] mb-4">Buat laporan bulanan melalui menu Form K1.</p>
         <router-link
           to="/input/k1"
           class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition cursor-pointer"
@@ -168,65 +236,139 @@ onMounted(() => {
         <table class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="bg-[#081331] text-[#9AA8C7] border-b border-[#1B2A4A]">
-              <th class="p-3 font-semibold text-center w-12">No</th>
-              <th class="p-3 font-semibold">Formulir</th>
+              <th class="p-3 font-semibold text-center w-14">ID</th>
               <th class="p-3 font-semibold">Wilayah</th>
-              <th class="p-3 font-semibold">Jenis / Periode</th>
+              <th class="p-3 font-semibold">Periode (Bulan & TW)</th>
               <th class="p-3 font-semibold text-center">Tahun</th>
-              <th class="p-3 font-semibold">Waktu Simpan</th>
-              <th class="p-3 font-semibold text-center w-36">Aksi</th>
+              <th class="p-3 font-semibold text-center">Status</th>
+              <th class="p-3 font-semibold">Pembuat</th>
+              <th class="p-3 font-semibold text-center w-48">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#1B2A4A] text-[#E6ECF8]">
             <tr
-              v-for="(item, idx) in items"
-              :key="item.key"
+              v-for="item in items"
+              :key="item.id_laporan"
               class="hover:bg-[#101F42]/40 transition"
             >
-              <td class="p-3 text-center text-[#9AA8C7]">{{ idx + 1 }}</td>
-              <td class="p-3 font-medium">
-                <div class="flex items-center gap-2">
-                  <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-600/30 text-blue-300 border border-blue-500/40">
-                    {{ item.kode }}
-                  </span>
-                  <span class="text-xs text-[#E6ECF8]">
-                    {{ getFormMeta(item.kode)?.nama || item.kode }}
-                  </span>
+              <!-- ID -->
+              <td class="p-3 text-center font-mono text-sky-300 font-bold">
+                #{{ item.id_laporan }}
+              </td>
+
+              <!-- Wilayah -->
+              <td class="p-3">
+                <div class="font-semibold text-[#E6ECF8]">
+                  {{ item.wilayah?.nama_kabupaten_kota || 'Wilayah ' + item.id_wilayah }}
+                </div>
+                <div class="text-[10px] text-[#9AA8C7] font-mono">
+                  Kode: {{ item.wilayah?.kode_wilayah || (item.id_wilayah === 1 ? 'BJM' : 'BTL') }}
                 </div>
               </td>
-              <td class="p-3 text-[#E6ECF8] font-semibold">{{ item.wilayah }}</td>
-              <td class="p-3 text-[#9AA8C7]">
-                <span class="text-[#E6ECF8]">{{ item.periode }}</span>
-                <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded bg-[#070E1C] border border-[#1B2A4A]">
-                  {{ item.jenis }}
+
+              <!-- Periode -->
+              <td class="p-3">
+                <span class="text-[#E6ECF8] font-medium">{{ bulanNames[item.bulan] || `Bulan ${item.bulan}` }}</span>
+                <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-800/60 font-semibold">
+                  TW {{ item.triwulan }}
                 </span>
               </td>
-              <td class="p-3 text-center font-mono">{{ item.tahun }}</td>
-              <td class="p-3 text-[#9AA8C7] text-[11px]">{{ formatWaktu(item.updatedAt) }}</td>
+
+              <!-- Tahun -->
+              <td class="p-3 text-center font-mono font-semibold">{{ item.tahun }}</td>
+
+              <!-- Status Badge -->
               <td class="p-3 text-center">
-                <div class="flex items-center justify-center gap-2">
-                  <!-- Tombol Buka -->
+                <span
+                  v-if="item.status_laporan === 'draf'"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  draf
+                </span>
+                <span
+                  v-else-if="item.status_laporan === 'terkirim'"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40 inline-flex items-center gap-1"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                  terkirim
+                </span>
+                <span
+                  v-else-if="item.status_laporan === 'disahkan'"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1"
+                  :title="`Disahkan pada: ${item.tanggal_pengesahan}`"
+                >
+                  <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                  disahkan
+                </span>
+              </td>
+
+              <!-- Pembuat -->
+              <td class="p-3 text-xs text-[#9AA8C7]">
+                <div class="text-[#E6ECF8] font-medium">{{ item.pengguna?.nama_pengguna || 'Operator' }}</div>
+                <div class="text-[10px] text-slate-500">{{ formatWaktu(item.waktu_input) }}</div>
+              </td>
+
+              <!-- Aksi -->
+              <td class="p-3 text-center">
+                <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                  <!-- Buka -->
                   <button
                     @click="bukaLaporan(item)"
-                    class="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
-                    title="Buka laporan ini"
+                    class="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
+                    title="Buka Form K1"
                   >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                    </svg>
                     Buka
                   </button>
 
-                  <!-- Tombol Hapus -->
+                  <!-- Kirim (Jika Draf) -->
                   <button
-                    @click="mintaKonfirmasiHapus(item)"
-                    class="px-2.5 py-1 bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded text-xs font-medium transition cursor-pointer flex items-center gap-1"
-                    title="Hapus laporan ini"
+                    v-if="item.status_laporan === 'draf' && (isOperator || isAdmin)"
+                    @click="prosesKirim(item)"
+                    class="px-2 py-1 bg-sky-700 hover:bg-sky-600 text-white rounded text-xs font-medium transition cursor-pointer"
+                    title="Kirim ke Kepala Balai"
                   >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
+                    Kirim
+                  </button>
+
+                  <!-- Sahkan (Jika Terkirim) -->
+                  <button
+                    v-if="item.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
+                    @click="prosesSahkan(item)"
+                    class="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-medium transition cursor-pointer"
+                    title="Sahkan Laporan"
+                  >
+                    Sahkan
+                  </button>
+
+                  <!-- Kembalikan ke Draf -->
+                  <button
+                    v-if="(item.status_laporan === 'terkirim' || item.status_laporan === 'disahkan') && (isKepalaBalai || isAdmin)"
+                    @click="prosesKembalikan(item)"
+                    class="px-2 py-1 bg-amber-800 hover:bg-amber-700 text-white rounded text-xs font-medium transition cursor-pointer"
+                    title="Kembalikan ke status Draf"
+                  >
+                    Kembali
+                  </button>
+
+                  <!-- Log -->
+                  <button
+                    @click="lihatLog(item)"
+                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium transition cursor-pointer"
+                    title="Lihat Log Perubahan"
+                  >
+                    Log
+                  </button>
+
+                  <!-- Hapus (Dilarang jika disahkan) -->
+                  <button
+                    v-if="item.status_laporan !== 'disahkan'"
+                    @click="mintaKonfirmasiHapus(item)"
+                    class="px-2 py-1 bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded text-xs font-medium transition cursor-pointer"
+                    title="Hapus Laporan"
+                  >
                     Hapus
                   </button>
                 </div>
@@ -252,15 +394,15 @@ onMounted(() => {
         <div>
           <h3 class="text-lg font-bold text-[#E6ECF8]">Konfirmasi Hapus Laporan</h3>
           <p class="text-xs sm:text-sm text-[#9AA8C7] mt-1.5">
-            Apakah Anda yakin ingin menghapus arsip laporan:
+            Apakah Anda yakin ingin menghapus dokumen laporan bulanan ini:
           </p>
           <div class="mt-2.5 p-3 rounded-lg bg-[#070E1C] border border-[#1B2A4A] text-xs space-y-1">
-            <div><strong class="text-[#E6ECF8]">Formulir:</strong> {{ itemToDelete?.kode }} - {{ getFormMeta(itemToDelete?.kode)?.nama }}</div>
-            <div><strong class="text-[#E6ECF8]">Wilayah:</strong> {{ itemToDelete?.wilayah }}</div>
-            <div><strong class="text-[#E6ECF8]">Periode:</strong> {{ itemToDelete?.periode }} {{ itemToDelete?.tahun }} ({{ itemToDelete?.jenis }})</div>
+            <div><strong class="text-[#E6ECF8]">ID Laporan:</strong> #{{ itemToDelete?.id_laporan }}</div>
+            <div><strong class="text-[#E6ECF8]">Wilayah:</strong> {{ itemToDelete?.wilayah?.nama_kabupaten_kota }}</div>
+            <div><strong class="text-[#E6ECF8]">Periode:</strong> {{ bulanNames[itemToDelete?.bulan] }} {{ itemToDelete?.tahun }} (TW {{ itemToDelete?.triwulan }})</div>
           </div>
           <p class="text-xs text-rose-400 mt-2">
-            Tindakan ini tidak dapat dibatalkan.
+            Seluruh data matriks K1 s.d. K10 di dalam laporan ini akan terhapus.
           </p>
         </div>
 
@@ -276,6 +418,61 @@ onMounted(() => {
             class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs sm:text-sm rounded-lg shadow-md transition cursor-pointer"
           >
             Ya, Hapus Laporan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL AUDIT TRAIL LOG -->
+    <div
+      v-if="isLogOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    >
+      <div class="bg-[#0C1730] border border-[#1B2A4A] rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-[#1B2A4A]">
+          <h3 class="text-sm font-bold text-[#E6ECF8] flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ activeLogTitle }}
+          </h3>
+          <button
+            @click="isLogOpen = false"
+            class="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div v-if="isLogLoading" class="py-8 text-center text-slate-400 text-xs">
+          Memuat riwayat log...
+        </div>
+
+        <div v-else-if="activeLogs.length === 0" class="py-8 text-center text-slate-400 text-xs">
+          Belum ada riwayat aktivitas pada laporan ini.
+        </div>
+
+        <div v-else class="space-y-3 max-h-80 overflow-y-auto pr-1">
+          <div
+            v-for="(log, idx) in activeLogs"
+            :key="idx"
+            class="p-3 rounded-lg bg-[#070E1C] border border-[#1B2A4A] text-xs space-y-1"
+          >
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sky-300">{{ log.aksi }}</span>
+              <span class="text-[10px] text-slate-500 font-mono">{{ formatWaktu(log.waktu) }}</span>
+            </div>
+            <p class="text-[#E6ECF8]">{{ log.catatan }}</p>
+            <div class="text-[10px] text-slate-400">Oleh: {{ log.pengguna || 'Sistem' }}</div>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button
+            @click="isLogOpen = false"
+            class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition"
+          >
+            Tutup
           </button>
         </div>
       </div>

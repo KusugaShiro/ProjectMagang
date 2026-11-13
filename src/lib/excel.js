@@ -1,21 +1,34 @@
 /**
- * Pembuat Berkas Excel untuk Laporan K1
- * Menggunakan paket xlsx (SheetJS) secara dynamic import di sisi frontend.
+ * Pembuat Berkas Excel untuk Laporan K1 & Rekapitulasi Balai
+ * Mendukung download stream backend dan fallback SheetJS lokal di browser.
  */
 
+import { apiUnduhExcelResmi } from './api'
+
 export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode } = meta
+
+  // 1. Coba download dari backend jika tersedia
+  try {
+    const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
+    if (successBackend) {
+      return
+    }
+  } catch (e) {
+    console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
+  }
+
+  // 2. Fallback: Buat Excel K1 via SheetJS
   const XLSX = await import('xlsx')
 
-  const { wilayah, jenis, periode, tahun, kode } = meta
-  const periodLabel = jenis === 'Bulanan' ? 'Bulan' : 'Triwulan'
-
   const wsData = [
-    // Judul & Metadata
+    // Judul & Metadata Resmi
     ['DATA PEGAWAI PENGAWAS KETENAGAKERJAAN'],
-    [`${periodLabel} : ${periode}`],
+    [`Bulan : ${bulan}`],
+    [`Triwulan : TW ${triwulan}`],
     [`Tahun : ${tahun}`],
-    [`Kabupaten/Wilayah : ${wilayah}`],
-    [`Kode : ${kode}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K1'}`],
     [], // Baris kosong
     // Header Kolom
     [
@@ -32,8 +45,7 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
   // Baris Data
   config.rows.forEach((rowDef) => {
     if (rowDef.isGroup) {
-      // Baris grup menampilkan '-'
-      const groupRow = [
+      wsData.push([
         rowDef.no || '',
         rowDef.label || '',
         '-',
@@ -41,28 +53,17 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
         '-',
         '-',
         ''
-      ]
-      wsData.push(groupRow)
+      ])
     } else {
-      const rowVal = rowsData[rowDef.id] || {}
+      const rowVal = rowsData[rowDef.id_jabatan] || {}
       const rowItem = [
         rowDef.no || '',
         rowDef.label || '',
-        rowVal.umum ?? 0,
-        rowVal.spesialis_1 ?? 0,
-        rowVal.spesialis_2 ?? 0,
-        rowVal.spesialis_3 ?? 0,
-        rowVal.spesialis_4 ?? 0,
-        rowVal.spesialis_5 ?? 0,
-        rowVal.spesialis_6 ?? 0,
-        rowVal.spesialis_7 ?? 0,
-        rowVal.spesialis_8 ?? 0,
-        rowVal.spesialis_9 ?? 0,
-        rowVal.spesialis_10 ?? 0,
-        rowVal.spesialis_11 ?? 0,
-        summaryTotals.rowTotals[rowDef.id] ?? 0,
-        rowVal.ppns ?? 0,
-        rowVal.ket || ''
+        rowVal.jml_umum ?? 0,
+        ...config.spesialisFields.map(sf => rowVal[sf.key] ?? 0),
+        summaryTotals.rowTotals[rowDef.id_jabatan] ?? 0,
+        rowVal.jml_ppns ?? 0,
+        rowVal.keterangan || ''
       ]
       wsData.push(rowItem)
     }
@@ -73,20 +74,10 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
   const totalRow = [
     '',
     'JUMLAH',
-    colTotals.umum ?? 0,
-    colTotals.spesialis_1 ?? 0,
-    colTotals.spesialis_2 ?? 0,
-    colTotals.spesialis_3 ?? 0,
-    colTotals.spesialis_4 ?? 0,
-    colTotals.spesialis_5 ?? 0,
-    colTotals.spesialis_6 ?? 0,
-    colTotals.spesialis_7 ?? 0,
-    colTotals.spesialis_8 ?? 0,
-    colTotals.spesialis_9 ?? 0,
-    colTotals.spesialis_10 ?? 0,
-    colTotals.spesialis_11 ?? 0,
+    colTotals.jml_umum ?? 0,
+    ...config.spesialisFields.map(sf => colTotals[sf.key] ?? 0),
     summaryTotals.grandTotal ?? 0,
-    colTotals.ppns ?? 0,
+    colTotals.jml_ppns ?? 0,
     ''
   ]
   wsData.push(totalRow)
@@ -105,7 +96,6 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
   // Buat Sheet & Workbook
   const ws = XLSX.utils.aoa_to_sheet(wsData)
 
-  // Atur lebar kolom agar rapi
   ws['!cols'] = [
     { wch: 6 },  // No
     { wch: 28 }, // Jabatan
@@ -114,12 +104,12 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, // 1-11
     { wch: 10 }, // Jumlah
     { wch: 8 },  // PPNS
-    { wch: 20 }  // Ket
+    { wch: 24 }  // Ket
   ]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'K1')
 
-  const fileName = `K1_${wilayah}_${periode}_${tahun}.xlsx`
+  const fileName = `K1_${wilayahName}_Bulan${bulan}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }

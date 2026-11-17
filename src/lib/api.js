@@ -258,6 +258,9 @@ export async function apiGetDaftarLaporan(params = {}) {
     if (db.matriksData[`${item.id_laporan}_k2`] && !item.modul_list.includes('K2')) {
       item.modul_list.push('K2')
     }
+    if (db.matriksData[`${item.id_laporan}_k3`] && !item.modul_list.includes('K3')) {
+      item.modul_list.push('K3')
+    }
     if (!item.kode && item.modul_list.length > 0) {
       item.kode = item.modul_list[item.modul_list.length - 1]
     }
@@ -578,7 +581,7 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
 
   const savedResult = {
     data: payloadBaris.map((b, idx) => ({
-      [m === 'k2' ? 'id_k2' : 'id_k1']: 100 + idx,
+      [`id_${m}`]: 100 + idx,
       id_laporan: Number(id_laporan),
       ...b,
     })),

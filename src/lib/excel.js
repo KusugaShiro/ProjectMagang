@@ -266,3 +266,126 @@ export async function exportK2ToExcel({ config, meta, rowsData, summaryTotals })
   const fileName = `K2_${wilayahName}_${bulan}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+
+  // 1. Coba download dari backend resmi jika tersedia
+  try {
+    const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
+    if (successBackend) {
+      return
+    }
+  } catch (e) {
+    console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
+  }
+
+  // 2. Fallback: Buat Excel K3 via SheetJS
+  const XLSX = await import('xlsx')
+
+  const wsData = [
+    ['OBYEK PENGAWASAN K3'],
+    [`Bulan : ${bulan}`],
+    [`Triwulan : TW ${triwulan}`],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K3'}`],
+    [], // Baris kosong
+    // Header SATU tingkat (bukan dua tingkat)
+    [
+      'No',
+      'Sektor/KLUI',
+      'Pesawat Uap',
+      'BT',
+      'PAA',
+      'PTP',
+      'KLISTRKAN',
+      'Pencegahan Kebakaran',
+      'Kesehatan Kerja',
+      'Konst. Bangunan',
+      'Lingk. Kerja',
+      'Sarana K3',
+      'Operator/Teknisi/Petugas',
+      'Pers. Jasa K3',
+      'Ket.'
+    ]
+  ]
+
+  // 10 baris data
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    const rowItem = [
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || ''
+    ]
+    wsData.push(rowItem)
+  })
+
+  // Baris JUMLAH Total (12 kolom angka dijumlah, kolom Ket berisi "-")
+  const colTotals = summaryTotals.colTotals || {}
+  const totalRow = [
+    '',
+    'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-'
+  ]
+  wsData.push(totalRow)
+
+  // Baris kosong
+  wsData.push([])
+
+  // Daftar Keterangan Kolom (Pesawat Uap = Pesawat Uap sampai Ket = Keterangan)
+  wsData.push(['Keterangan Kolom :'])
+  if (config.columnDescriptions && config.columnDescriptions.length > 0) {
+    config.columnDescriptions.forEach(desc => {
+      wsData.push([`${desc.label || desc.id} = ${desc.text}`])
+    })
+  }
+
+  // Baris kosong sebelum tanda tangan
+  wsData.push([])
+  wsData.push([])
+
+  // Footer Tanda Tangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
+  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
+  const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
+  const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
+  const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
+
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, 2026`])
+  wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
+  wsData.push([])
+  wsData.push([])
+  wsData.push([])
+  wsData.push(['', namaKepala, '', '', '', '', '', '', '', '', '', '', '', namaPembuat])
+  wsData.push(['', nipKepala, '', '', '', '', '', '', '', '', '', '', '', nipPembuat])
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 12 }, // Sektor/KLUI
+    { wch: 14 }, // Pesawat Uap
+    { wch: 10 }, // BT
+    { wch: 10 }, // PAA
+    { wch: 10 }, // PTP
+    { wch: 14 }, // KLISTRKAN
+    { wch: 22 }, // Pencegahan Kebakaran
+    { wch: 16 }, // Kesehatan Kerja
+    { wch: 16 }, // Konst. Bangunan
+    { wch: 14 }, // Lingk. Kerja
+    { wch: 12 }, // Sarana K3
+    { wch: 24 }, // Operator/Teknisi/Petugas
+    { wch: 16 }, // Pers. Jasa K3
+    { wch: 24 }, // Ket.
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K3')
+
+  const fileName = `K3_${wilayahName}_${bulan}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

@@ -62,7 +62,7 @@ import { formList } from '../forms'
               {{ f.kode }}
             </span>
             <span
-              v-if="f.kode === 'K1' || f.kode === 'K2'"
+              v-if="f.kode === 'K1' || f.kode === 'K2' || f.kode === 'K3'"
               class="text-[10px] uppercase font-black text-black bg-emerald-300 border border-black px-2 py-0.5 rounded-full"
             >
               Aktif

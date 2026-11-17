@@ -249,6 +249,20 @@ export async function apiGetDaftarLaporan(params = {}) {
   const db = getMockDb()
   let list = [...db.laporanList]
 
+  // Sinkronisasi modul yang tersimpan di matriksData
+  list.forEach(item => {
+    if (!item.modul_list) item.modul_list = []
+    if (db.matriksData[`${item.id_laporan}_k1`] && !item.modul_list.includes('K1')) {
+      item.modul_list.push('K1')
+    }
+    if (db.matriksData[`${item.id_laporan}_k2`] && !item.modul_list.includes('K2')) {
+      item.modul_list.push('K2')
+    }
+    if (!item.kode && item.modul_list.length > 0) {
+      item.kode = item.modul_list[item.modul_list.length - 1]
+    }
+  })
+
   if (currentUser.value?.peran === 'operator_kabupaten' && currentUser.value.id_wilayah) {
     list = list.filter(item => item.id_wilayah === currentUser.value.id_wilayah)
   } else if (params.id_wilayah) {
@@ -539,6 +553,14 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
   if (lap && lap.status_laporan === 'disahkan') {
     throw new Error('Akses Ditolak (403): Laporan sudah berstatus disahkan dan berstatus read-only.')
   }
+  if (lap) {
+    lap.kode = m.toUpperCase()
+    lap.modul = m
+    if (!lap.modul_list) lap.modul_list = []
+    if (!lap.modul_list.includes(m.toUpperCase())) {
+      lap.modul_list.push(m.toUpperCase())
+    }
+  }
 
   const key = `${id_laporan}_${m}`
   const totalObj = {}
@@ -546,7 +568,7 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
 
   payloadBaris.forEach(row => {
     Object.keys(row).forEach(k => {
-      if (k !== 'id_jabatan' && k !== 'id_klui' && k !== 'keterangan') {
+      if (k !== 'id_jabatan' && k !== 'id_klui' && k !== 'keterangan' && k !== 'penghargaan_k3') {
         const val = Number(row[k]) || 0
         totalObj[k] = (totalObj[k] || 0) + val
         if (val > 0) isNihil = false
@@ -556,7 +578,7 @@ export async function apiSimpanMatriksModul(id_laporan, modul = 'k1', payloadBar
 
   const savedResult = {
     data: payloadBaris.map((b, idx) => ({
-      id_k1: 100 + idx,
+      [m === 'k2' ? 'id_k2' : 'id_k1']: 100 + idx,
       id_laporan: Number(id_laporan),
       ...b,
     })),

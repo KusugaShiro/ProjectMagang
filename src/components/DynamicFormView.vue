@@ -18,7 +18,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -77,24 +77,37 @@ const isReadOnly = computed(() => {
   return activeLaporan.value?.status_laporan === 'disahkan'
 })
 
-// Inisialisasi baris kosong untuk 6 jabatan K1
+// Inisialisasi baris kosong untuk form K1 atau K2
 function initEmptyRows() {
   Object.keys(rowsData).forEach(k => delete rowsData[k])
 
-  props.config.rows.forEach(row => {
-    if (!row.isGroup && row.id_jabatan) {
+  if (props.config.kode === 'K2') {
+    props.config.rows.forEach(row => {
       const rowItem = {
-        id_jabatan: row.id_jabatan,
-        jml_umum: 0,
-        jml_ppns: 0,
-        keterangan: '',
+        id_klui: row.id_klui,
+        penghargaan_k3: '',
       }
-      props.config.spesialisFields.forEach(sf => {
+      props.config.numericFields.forEach(sf => {
         rowItem[sf.key] = 0
       })
-      rowsData[row.id_jabatan] = rowItem
-    }
-  })
+      rowsData[row.id_klui] = rowItem
+    })
+  } else {
+    props.config.rows.forEach(row => {
+      if (!row.isGroup && row.id_jabatan) {
+        const rowItem = {
+          id_jabatan: row.id_jabatan,
+          jml_umum: 0,
+          jml_ppns: 0,
+          keterangan: '',
+        }
+        props.config.spesialisFields?.forEach(sf => {
+          rowItem[sf.key] = 0
+        })
+        rowsData[row.id_jabatan] = rowItem
+      }
+    })
+  }
 }
 
 // Buka form isian / Buat dokumen laporan bulanan
@@ -136,9 +149,10 @@ async function bukaFormIsian() {
     const resModul = await apiGetMatriksModul(doc.id_laporan, props.config.modul || 'k1')
     if (resModul?.data && Array.isArray(resModul.data) && resModul.data.length > 0) {
       resModul.data.forEach(item => {
-        if (item.id_jabatan && rowsData[item.id_jabatan]) {
-          rowsData[item.id_jabatan] = {
-            ...rowsData[item.id_jabatan],
+        const key = props.config.kode === 'K2' ? item.id_klui : item.id_jabatan
+        if (key && rowsData[key]) {
+          rowsData[key] = {
+            ...rowsData[key],
             ...item,
           }
         }
@@ -154,43 +168,60 @@ async function bukaFormIsian() {
 }
 
 // Sanitasi input angka (int >= 0)
-function onNumberInput(idJabatan, field, event) {
+function onNumberInput(rowKey, field, event) {
   if (isReadOnly.value) return
   const raw = event.target.value
   if (raw === '' || isNaN(raw)) {
-    rowsData[idJabatan][field] = 0
+    rowsData[rowKey][field] = 0
     event.target.value = 0
     return
   }
   let val = Math.floor(Number(raw))
   if (val < 0) val = 0
-  rowsData[idJabatan][field] = val
+  rowsData[rowKey][field] = val
   event.target.value = val
 }
 
 // Komputasi total per baris dan baris JUMLAH
 const summaryTotals = computed(() => {
+  if (props.config.kode === 'K2') {
+    const colTotals = {}
+    props.config.numericFields?.forEach(sf => {
+      colTotals[sf.key] = 0
+    })
+
+    props.config.rows?.forEach(row => {
+      const rowVal = rowsData[row.id_klui] || {}
+      props.config.numericFields?.forEach(sf => {
+        colTotals[sf.key] += Number(rowVal[sf.key]) || 0
+      })
+    })
+
+    return { colTotals }
+  }
+
+  // Form K1
   const rowTotals = {}
   const colTotals = {
     jml_umum: 0,
     jml_ppns: 0,
   }
-  props.config.spesialisFields.forEach(sf => {
+  props.config.spesialisFields?.forEach(sf => {
     colTotals[sf.key] = 0
   })
 
   let grandTotal = 0
 
-  props.config.rows.forEach(row => {
+  props.config.rows?.forEach(row => {
     if (!row.isGroup && row.id_jabatan) {
       const rowVal = rowsData[row.id_jabatan] || {}
-      const rTotal = props.config.hitungJumlahBaris(rowVal)
+      const rTotal = props.config.hitungJumlahBaris ? props.config.hitungJumlahBaris(rowVal) : 0
       rowTotals[row.id_jabatan] = rTotal
       grandTotal += rTotal
 
       colTotals.jml_umum += Number(rowVal.jml_umum) || 0
       colTotals.jml_ppns += Number(rowVal.jml_ppns) || 0
-      props.config.spesialisFields.forEach(sf => {
+      props.config.spesialisFields?.forEach(sf => {
         colTotals[sf.key] += Number(rowVal[sf.key]) || 0
       })
     }
@@ -199,28 +230,43 @@ const summaryTotals = computed(() => {
   return { rowTotals, colTotals, grandTotal }
 })
 
-// Simpan Matriks ke API (PUT /api/laporan/{id}/k1)
+// Simpan Matriks ke API
 async function simpan() {
   if (!activeLaporan.value || isReadOnly.value) return
   errorMessage.value = ''
   successMessage.value = ''
   isLoading.value = true
 
-  const payloadBaris = props.config.rows
-    .filter(r => !r.isGroup && r.id_jabatan)
-    .map(r => {
-      const rowVal = rowsData[r.id_jabatan] || {}
+  let payloadBaris = []
+  if (props.config.kode === 'K2') {
+    payloadBaris = props.config.rows.map(r => {
+      const rowVal = rowsData[r.id_klui] || {}
       const payloadItem = {
-        id_jabatan: r.id_jabatan,
-        jml_umum: Number(rowVal.jml_umum) || 0,
-        jml_ppns: Number(rowVal.jml_ppns) || 0,
-        keterangan: rowVal.keterangan || null,
+        id_klui: r.id_klui,
+        penghargaan_k3: rowVal.penghargaan_k3 || null,
       }
-      props.config.spesialisFields.forEach(sf => {
+      props.config.numericFields.forEach(sf => {
         payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
       })
       return payloadItem
     })
+  } else {
+    payloadBaris = props.config.rows
+      .filter(r => !r.isGroup && r.id_jabatan)
+      .map(r => {
+        const rowVal = rowsData[r.id_jabatan] || {}
+        const payloadItem = {
+          id_jabatan: r.id_jabatan,
+          jml_umum: Number(rowVal.jml_umum) || 0,
+          jml_ppns: Number(rowVal.jml_ppns) || 0,
+          keterangan: rowVal.keterangan || null,
+        }
+        props.config.spesialisFields?.forEach(sf => {
+          payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+        })
+        return payloadItem
+      })
+  }
 
   try {
     await apiSimpanMatriksModul(activeLaporan.value.id_laporan, props.config.modul || 'k1', payloadBaris)
@@ -309,20 +355,37 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    await exportK1ToExcel({
-      config: props.config,
-      meta: {
-        id_wilayah: activeLaporan.value.id_wilayah,
-        wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-        bulan: namaBulan,
-        triwulan: activeLaporan.value.triwulan,
-        tahun: activeLaporan.value.tahun,
-        kode: props.config.kode || 'K1',
-        wilayahObj: wilObj,
-      },
-      rowsData,
-      summaryTotals: summaryTotals.value,
-    })
+    if (props.config.kode === 'K2') {
+      await exportK2ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K2',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else {
+      await exportK1ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          tahun: activeLaporan.value.tahun,
+          kode: props.config.kode || 'K1',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    }
   } catch (err) {
     alert('Gagal mengekspor berkas Excel: ' + (err.message || err))
   }
@@ -477,7 +540,7 @@ onMounted(() => {
             <span>Triwulan: <strong class="font-mono text-black">TW {{ activeLaporan.triwulan }}</strong></span>
             <span>&bull;</span>
             <span class="bg-yellow-200 px-2 py-0.5 rounded border border-black text-[11px]">
-              Tabel DB: <strong>rekap_k1_pegawai</strong> (Snapshot Akhir TW)
+              Tabel DB: <strong>{{ config.tabel_db || (config.kode === 'K2' ? 'rekap_k2_obyek_pengawasan' : 'rekap_k1_pegawai') }}</strong> (Snapshot Akhir TW)
             </span>
           </div>
         </div>
@@ -566,7 +629,11 @@ onMounted(() => {
 
       <!-- Wadah scroll tabel saja, tidak membuat halaman scroll mendatar -->
       <div class="overflow-x-auto rounded-lg border-2 border-black max-w-full shadow-xs">
-        <table class="w-full text-left text-xs border-collapse">
+        
+        <!-- ============================================== -->
+        <!-- TABEL MODUL K1: DATA PEGAWAI PENGAWAS -->
+        <!-- ============================================== -->
+        <table v-if="config.kode === 'K1'" class="w-full text-left text-xs border-collapse">
           <thead>
             <tr class="bg-black text-white border-b-2 border-black">
               <th
@@ -736,6 +803,154 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
+
+        <!-- ============================================== -->
+        <!-- TABEL MODUL K2: DATA OBYEK PENGAWASAN -->
+        <!-- ============================================== -->
+        <table v-else-if="config.kode === 'K2'" class="w-full text-left text-xs border-collapse">
+          <thead>
+            <!-- Header Tingkat 1 -->
+            <tr class="bg-black text-white border-b-2 border-black">
+              <th
+                rowspan="2"
+                class="p-2.5 font-black text-center sticky left-0 z-20 bg-black text-white border-r border-slate-700 w-12 min-w-[48px]"
+              >
+                No
+              </th>
+              <th
+                rowspan="2"
+                class="p-2.5 font-black text-center sticky left-12 z-20 bg-black text-white border-r border-slate-700 w-24 min-w-[90px]"
+              >
+                Sektor/KLUI
+              </th>
+              <th
+                rowspan="2"
+                class="p-2.5 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300 w-24 min-w-[90px]"
+              >
+                Jml Perusahaan
+              </th>
+              <th
+                colspan="2"
+                class="p-2 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300"
+              >
+                Jml TK
+              </th>
+              <th
+                colspan="3"
+                class="p-2 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300"
+              >
+                Kategori Prsh
+              </th>
+              <th
+                colspan="4"
+                class="p-2 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300"
+              >
+                Status Perusahaan
+              </th>
+              <th
+                colspan="4"
+                class="p-2 font-black text-center border-r border-slate-700 bg-slate-900 text-yellow-300"
+              >
+                Perangkat Hub. Industrial
+              </th>
+              <th
+                rowspan="2"
+                class="p-2.5 font-black text-center border-r border-slate-700 bg-black text-white w-48 min-w-[190px]"
+              >
+                Penghargaan K3
+              </th>
+            </tr>
+
+            <!-- Header Tingkat 2 -->
+            <tr class="bg-slate-900 text-yellow-300 border-b-2 border-black">
+              <!-- Jml TK -->
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">WNI</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">WNA</th>
+              <!-- Kategori Prsh -->
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">Kecil</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">Sedang</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">Besar</th>
+              <!-- Status Perusahaan -->
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">Swasta</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">PMDN</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">PMA</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-24 min-w-[95px] text-yellow-300">Joint Venture</th>
+              <!-- Perangkat Hub. Industrial -->
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">PP</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">PKB</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-20 min-w-[75px] text-yellow-300">SP</th>
+              <th class="p-1.5 font-black text-center border-r border-slate-700 w-24 min-w-[95px] text-yellow-300">Lemb. Bipartit</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-300 text-black">
+            <!-- Tepat 10 Baris: nomor 1 sampai 10, kolom Sektor/KLUI berisi 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 -->
+            <tr
+              v-for="row in config.rows"
+              :key="row.id_klui"
+              class="hover:bg-yellow-50/50 transition font-bold"
+            >
+              <!-- No (menempel saat digeser) -->
+              <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black">
+                {{ row.no }}
+              </td>
+              <!-- Sektor/KLUI (menempel saat digeser) -->
+              <td
+                class="p-2.5 text-center sticky left-12 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black"
+                :title="row.nama_sektor"
+              >
+                {{ row.sektor_klui }}
+              </td>
+              <!-- 14 Kolom Kotak Isian Angka (kosong dihitung 0, tidak boleh negatif) -->
+              <td
+                v-for="f in config.numericFields"
+                :key="`k2-${row.id_klui}-${f.key}`"
+                class="p-1 border-r border-slate-300"
+              >
+                <input
+                  type="number"
+                  min="0"
+                  :disabled="isReadOnly"
+                  :value="rowsData[row.id_klui]?.[f.key]"
+                  @input="onNumberInput(row.id_klui, f.key, $event)"
+                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-black disabled:bg-slate-100 disabled:text-black font-mono"
+                />
+              </td>
+              <!-- Kolom Penghargaan K3 (Kotak Teks) -->
+              <td class="p-1">
+                <input
+                  type="text"
+                  maxlength="255"
+                  :disabled="isReadOnly"
+                  v-model="rowsData[row.id_klui].penghargaan_k3"
+                  placeholder="Penghargaan K3..."
+                  class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-black text-xs disabled:bg-slate-100 disabled:text-black"
+                />
+              </td>
+            </tr>
+
+            <!-- BARIS JUMLAH TOTAL K2 (Dihitung otomatis untuk 14 kolom angka, Penghargaan K3 '-') -->
+            <tr class="bg-yellow-400 font-black text-black border-t-4 border-black">
+              <td class="p-2.5 text-center sticky left-0 z-10 bg-yellow-400 border-r border-black font-black">
+                -
+              </td>
+              <td class="p-2.5 text-center sticky left-12 z-10 bg-yellow-400 border-r border-black tracking-wider uppercase font-black text-black">
+                JUMLAH
+              </td>
+              <td
+                v-for="f in config.numericFields"
+                :key="`tot-k2-${f.key}`"
+                class="p-2.5 text-center border-r border-black font-mono font-black text-black"
+              >
+                {{ summaryTotals.colTotals?.[f.key] ?? 0 }}
+              </td>
+              <td class="p-2.5 text-center text-black font-black bg-yellow-400">
+                -
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
       </div>
 
       <!-- BLOK TANDA TANGAN DINAMIS DARI wilayah_pengawasan (ATURAN BISNIS #5 PRD) -->
@@ -809,20 +1024,20 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- KARTU 3: KETERANGAN KOLOM SPESIALIS -->
+    <!-- KARTU 3: KETERANGAN KOLOM -->
     <section
-      v-if="config.specialistDescriptions && config.specialistDescriptions.length > 0"
+      v-if="(config.columnDescriptions && config.columnDescriptions.length > 0) || (config.specialistDescriptions && config.specialistDescriptions.length > 0)"
       class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs"
     >
       <h3 class="text-sm font-black text-black mb-3 flex items-center gap-2">
         <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Keterangan kolom spesialis:
+        {{ config.kode === 'K2' ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:' }}
       </h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
         <div
-          v-for="desc in config.specialistDescriptions"
+          v-for="desc in (config.columnDescriptions || config.specialistDescriptions)"
           :key="desc.id"
           class="bg-white border-2 border-slate-300 rounded-lg p-2.5 text-black flex items-start gap-2 shadow-xs"
         >

@@ -49,9 +49,10 @@ async function muatDaftar() {
   }
 }
 
-function bukaLaporan(item) {
+function bukaLaporan(item, targetModul) {
+  const modul = (targetModul || item.kode || item.modul || 'k1').toLowerCase()
   router.push({
-    path: '/input/k1',
+    path: `/input/${modul}`,
     query: {
       id_wilayah: item.id_wilayah,
       bulan: item.bulan,
@@ -236,6 +237,7 @@ onMounted(() => {
             <tr class="bg-black text-white border-b-2 border-black">
               <th class="p-3 font-black text-center w-14">ID</th>
               <th class="p-3 font-black">Wilayah</th>
+              <th class="p-3 font-black text-center">Formulir</th>
               <th class="p-3 font-black">Periode (Bulan & TW)</th>
               <th class="p-3 font-black text-center">Tahun</th>
               <th class="p-3 font-black text-center">Status</th>
@@ -261,6 +263,19 @@ onMounted(() => {
                 </div>
                 <div class="text-[10px] text-black font-mono font-bold">
                   Kode: {{ item.wilayah?.kode_wilayah || (item.id_wilayah === 1 ? 'BJM' : 'BTL') }}
+                </div>
+              </td>
+
+              <!-- Formulir -->
+              <td class="p-3 text-center">
+                <div class="flex items-center justify-center gap-1 flex-wrap">
+                  <span
+                    v-for="m in (item.modul_list?.length ? item.modul_list : [item.kode || 'K1'])"
+                    :key="m"
+                    class="px-2 py-0.5 rounded text-[11px] font-black bg-yellow-400 text-black border border-black"
+                  >
+                    {{ m }}
+                  </span>
                 </div>
               </td>
 
@@ -315,13 +330,25 @@ onMounted(() => {
               <!-- Aksi -->
               <td class="p-3 text-center">
                 <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                  <!-- Buka (Kuning) -->
+                  <!-- Buka -->
+                  <template v-if="item.modul_list && item.modul_list.length > 1">
+                    <button
+                      v-for="m in item.modul_list"
+                      :key="m"
+                      @click="bukaLaporan(item, m)"
+                      class="px-2 py-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded text-xs font-black transition cursor-pointer border-2 border-black shadow-xs"
+                      :title="`Buka Form ${m}`"
+                    >
+                      Buka {{ m }}
+                    </button>
+                  </template>
                   <button
-                    @click="bukaLaporan(item)"
+                    v-else
+                    @click="bukaLaporan(item, item.kode || 'k1')"
                     class="px-2.5 py-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded text-xs font-black transition cursor-pointer border-2 border-black shadow-xs"
-                    title="Buka Form K1"
+                    :title="`Buka Form ${item.kode || 'K1'}`"
                   >
-                    Buka
+                    Buka {{ item.kode ? item.kode : '' }}
                   </button>
 
                   <!-- Kirim (Jika Draf - Putih border hitam) -->

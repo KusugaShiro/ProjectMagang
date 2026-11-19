@@ -240,14 +240,24 @@ async function simpan() {
   isLoading.value = true
 
   let payloadBaris = []
-  if (props.config.kode === 'K2' || props.config.kode === 'K3') {
+  if (props.config.kode === 'K2') {
     payloadBaris = props.config.rows.map(r => {
       const rowVal = rowsData[r.id_klui] || {}
       const payloadItem = {
         id_klui: r.id_klui,
+        penghargaan_k3: Number(rowVal.penghargaan_k3) || 0,
       }
-      if (props.config.textField) {
-        payloadItem[props.config.textField.key] = rowVal[props.config.textField.key] || null
+      props.config.numericFields.forEach(sf => {
+        payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+      })
+      return payloadItem
+    })
+  } else if (props.config.kode === 'K3') {
+    payloadBaris = props.config.rows.map(r => {
+      const rowVal = rowsData[r.id_klui] || {}
+      const payloadItem = {
+        id_klui: r.id_klui,
+        keterangan: rowVal.keterangan || null,
       }
       props.config.numericFields.forEach(sf => {
         payloadItem[sf.key] = Number(rowVal[sf.key]) || 0

@@ -1,17 +1,22 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formList } from '../forms'
 import {
   currentUser,
   SEED_ACCOUNTS,
   switchAccount,
+  initAuth,
 } from '../lib/auth'
 
 const route = useRoute()
 const router = useRouter()
 const isMobileSidebarOpen = ref(false)
 const isAccountMenuOpen = ref(false)
+
+onMounted(async () => {
+  await initAuth()
+})
 
 function toggleMobileSidebar() {
   isMobileSidebarOpen.value = !isMobileSidebarOpen.value
@@ -21,10 +26,14 @@ function closeMobileSidebar() {
   isMobileSidebarOpen.value = false
 }
 
-function pilihAkun(email) {
-  switchAccount(email)
-  isAccountMenuOpen.value = false
-  router.go(0)
+async function pilihAkun(email) {
+  try {
+    await switchAccount(email)
+    isAccountMenuOpen.value = false
+    router.go(0)
+  } catch (err) {
+    alert('Gagal login ke akun backend: ' + (err.message || err))
+  }
 }
 
 const currentTitle = computed(() => {

@@ -175,7 +175,7 @@ onMounted(() => {
       <button
         @click="muatDaftar"
         :disabled="isLoading"
-        class="self-start sm:self-auto px-4 py-2 bg-white hover:bg-yellow-100 border-2 border-black text-black text-xs font-black rounded-lg transition flex items-center gap-2 cursor-pointer shadow-xs"
+        class="self-start sm:self-auto px-4 py-2 bg-white hover:bg-slate-100 border-2 border-slate-400 text-slate-900 text-xs font-black rounded-lg transition flex items-center gap-2 cursor-pointer shadow-xs"
       >
         <svg :class="['w-3.5 h-3.5 text-black', isLoading ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -184,8 +184,8 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Feedback Message (Kuning Cerah & Teks Hitam) -->
-    <div v-if="feedbackMessage" class="p-4 rounded-xl bg-yellow-300 border-2 border-black text-black text-sm flex items-center gap-2 shadow-xs">
+    <!-- Feedback Message (Abu-abu & Teks Hitam) -->
+    <div v-if="feedbackMessage" class="p-4 rounded-xl bg-slate-100 border-2 border-slate-600 text-black text-sm flex items-center gap-2 shadow-xs">
       <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
       </svg>
@@ -212,29 +212,29 @@ onMounted(() => {
 
       <!-- Jika Kosong -->
       <div v-else-if="items.length === 0" class="py-16 text-center text-black">
-        <div class="w-12 h-12 rounded-full bg-yellow-100 border-2 border-black flex items-center justify-center mx-auto mb-3 text-black">
-          <svg class="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-12 h-12 rounded-full bg-slate-100 border-2 border-slate-400 flex items-center justify-center mx-auto mb-3 text-slate-700">
+          <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
           </svg>
         </div>
         <p class="text-base font-black text-black mb-1">Belum ada dokumen laporan bulanan</p>
-        <p class="text-xs text-black font-bold mb-4">Buat laporan bulanan melalui menu Form K1.</p>
+        <p class="text-xs text-slate-600 font-bold mb-4">Buat laporan bulanan melalui menu Form K1.</p>
         <router-link
           to="/input/k1"
-          class="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg text-xs font-black transition cursor-pointer border-2 border-black shadow-xs"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs"
         >
           <span>Input Form K1</span>
-          <svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
           </svg>
         </router-link>
       </div>
 
       <!-- Tabel Daftar Laporan -->
-      <div v-else class="overflow-x-auto rounded-lg border-2 border-black shadow-xs">
+      <div v-else class="overflow-x-auto rounded-lg border-2 border-slate-400 shadow-xs">
         <table class="w-full text-left text-xs border-collapse">
           <thead>
-            <tr class="bg-black text-white border-b-2 border-black">
+            <tr class="bg-slate-900 text-white border-b-2 border-slate-900">
               <th class="p-3 font-black text-center w-14">ID</th>
               <th class="p-3 font-black">Wilayah</th>
               <th class="p-3 font-black text-center">Formulir</th>
@@ -249,7 +249,7 @@ onMounted(() => {
             <tr
               v-for="item in items"
               :key="item.id_laporan"
-              class="hover:bg-yellow-50/50 transition font-bold"
+              class="hover:bg-slate-50/70 transition font-bold"
             >
               <!-- ID -->
               <td class="p-3 text-center font-mono text-black font-black">
@@ -272,7 +272,7 @@ onMounted(() => {
                   <span
                     v-for="m in (item.modul_list?.length ? item.modul_list : [item.kode || 'K1'])"
                     :key="m"
-                    class="px-2 py-0.5 rounded text-[11px] font-black bg-yellow-400 text-black border border-black"
+                    class="px-2 py-0.5 rounded text-[11px] font-black bg-slate-200 text-slate-900 border border-slate-400"
                   >
                     {{ m }}
                   </span>
@@ -282,7 +282,7 @@ onMounted(() => {
               <!-- Periode -->
               <td class="p-3">
                 <span class="text-black font-black">{{ bulanNames[item.bulan] || `Bulan ${item.bulan}` }}</span>
-                <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded bg-yellow-300 text-black border border-black font-black">
+                <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded bg-slate-200 text-slate-800 border border-slate-400 font-black">
                   TW {{ item.triwulan }}
                 </span>
               </td>
@@ -292,29 +292,29 @@ onMounted(() => {
 
               <!-- Status Badge -->
               <td class="p-3 text-center">
-                <!-- Draf (Kuning) -->
+                <!-- Draf (Abu-abu muda) -->
                 <span
                   v-if="item.status_laporan === 'draf'"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-yellow-300 text-black border border-black inline-flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-slate-200 text-slate-900 border border-slate-400 inline-flex items-center gap-1"
                 >
-                  <span class="w-2 h-2 rounded-full bg-black"></span>
+                  <span class="w-2 h-2 rounded-full bg-slate-600"></span>
                   draf
                 </span>
-                <!-- Terkirim (Putih border hitam) -->
+                <!-- Terkirim (Putih border abu-abu) -->
                 <span
                   v-else-if="item.status_laporan === 'terkirim'"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-white text-black border-2 border-black inline-flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-white text-black border-2 border-slate-500 inline-flex items-center gap-1"
                 >
-                  <span class="w-2 h-2 rounded-full bg-yellow-400 border border-black"></span>
+                  <span class="w-2 h-2 rounded-full bg-slate-400 border border-slate-600"></span>
                   terkirim
                 </span>
-                <!-- Disahkan (Hijau Terang border hitam) -->
+                <!-- Disahkan (Abu-abu gelap teks putih) -->
                 <span
                   v-else-if="item.status_laporan === 'disahkan'"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-200 text-black border-2 border-black inline-flex items-center gap-1"
+                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-slate-800 text-white border-2 border-slate-900 inline-flex items-center gap-1"
                   :title="`Disahkan pada: ${item.tanggal_pengesahan}`"
                 >
-                  <svg class="w-3 h-3 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                   </svg>
                   disahkan
@@ -336,7 +336,7 @@ onMounted(() => {
                       v-for="m in item.modul_list"
                       :key="m"
                       @click="bukaLaporan(item, m)"
-                      class="px-2 py-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded text-xs font-black transition cursor-pointer border-2 border-black shadow-xs"
+                      class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs"
                       :title="`Buka Form ${m}`"
                     >
                       Buka {{ m }}
@@ -345,27 +345,27 @@ onMounted(() => {
                   <button
                     v-else
                     @click="bukaLaporan(item, item.kode || 'k1')"
-                    class="px-2.5 py-1 bg-yellow-400 hover:bg-yellow-300 text-black rounded text-xs font-black transition cursor-pointer border-2 border-black shadow-xs"
+                    class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs"
                     :title="`Buka Form ${item.kode || 'K1'}`"
                   >
                     Buka {{ item.kode ? item.kode : '' }}
                   </button>
 
-                  <!-- Kirim (Jika Draf - Putih border hitam) -->
+                  <!-- Kirim (Jika Draf - Putih border abu-abu) -->
                   <button
                     v-if="item.status_laporan === 'draf' && (isOperator || isAdmin)"
                     @click="prosesKirim(item)"
-                    class="px-2 py-1 bg-white hover:bg-yellow-100 text-black border-2 border-black rounded text-xs font-black transition cursor-pointer shadow-xs"
+                    class="px-2 py-1 bg-white hover:bg-slate-100 text-black border-2 border-slate-400 rounded text-xs font-black transition cursor-pointer shadow-xs"
                     title="Kirim ke Kepala Balai"
                   >
                     Kirim
                   </button>
 
-                  <!-- Sahkan (Jika Terkirim - Hitam teks Kuning) -->
+                  <!-- Sahkan (Jika Terkirim - Abu-abu gelap teks putih) -->
                   <button
                     v-if="item.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
                     @click="prosesSahkan(item)"
-                    class="px-2 py-1 bg-black hover:bg-slate-800 text-yellow-300 border-2 border-black rounded text-xs font-black transition cursor-pointer shadow-xs"
+                    class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 rounded text-xs font-black transition cursor-pointer shadow-xs"
                     title="Sahkan Laporan"
                   >
                     Sahkan
@@ -381,10 +381,10 @@ onMounted(() => {
                     Kembali
                   </button>
 
-                  <!-- Log (Putih border hitam) -->
+                  <!-- Log (Putih border abu-abu) -->
                   <button
                     @click="lihatLog(item)"
-                    class="px-2 py-1 bg-white hover:bg-slate-100 border border-black text-black rounded text-xs font-bold transition cursor-pointer"
+                    class="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-400 text-black rounded text-xs font-bold transition cursor-pointer"
                     title="Lihat Log Perubahan"
                   >
                     Log
@@ -412,7 +412,7 @@ onMounted(() => {
       v-if="isConfirmOpen"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
     >
-      <div class="bg-white border-2 border-black rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
         <div class="w-12 h-12 rounded-full bg-red-100 border-2 border-red-500 flex items-center justify-center text-red-600">
           <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -424,7 +424,7 @@ onMounted(() => {
           <p class="text-xs sm:text-sm text-black font-bold mt-1.5">
             Apakah Anda yakin ingin menghapus dokumen laporan bulanan ini:
           </p>
-          <div class="mt-2.5 p-3 rounded-lg bg-yellow-50 border-2 border-black text-xs space-y-1 font-bold">
+          <div class="mt-2.5 p-3 rounded-lg bg-slate-50 border-2 border-slate-300 text-xs space-y-1 font-bold">
             <div><strong class="text-black">ID Laporan:</strong> #{{ itemToDelete?.id_laporan }}</div>
             <div><strong class="text-black">Wilayah:</strong> {{ itemToDelete?.wilayah?.nama_kabupaten_kota }}</div>
             <div><strong class="text-black">Periode:</strong> {{ bulanNames[itemToDelete?.bulan] }} {{ itemToDelete?.tahun }} (TW {{ itemToDelete?.triwulan }})</div>
@@ -437,7 +437,7 @@ onMounted(() => {
         <div class="flex items-center justify-end gap-3 pt-2">
           <button
             @click="batalHapus"
-            class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-black transition cursor-pointer"
+            class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
           >
             Batal
           </button>
@@ -456,8 +456,8 @@ onMounted(() => {
       v-if="isLogOpen"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
     >
-      <div class="bg-white border-2 border-black rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b-2 border-black">
+      <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b-2 border-slate-300">
           <h3 class="text-sm font-black text-black flex items-center gap-2">
             <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -466,7 +466,7 @@ onMounted(() => {
           </h3>
           <button
             @click="isLogOpen = false"
-            class="text-black font-black hover:bg-yellow-200 p-1 rounded border border-black"
+            class="text-black font-black hover:bg-slate-200 p-1 rounded border border-slate-400"
           >
             ✕
           </button>
@@ -484,10 +484,10 @@ onMounted(() => {
           <div
             v-for="(log, idx) in activeLogs"
             :key="idx"
-            class="p-3 rounded-lg bg-yellow-50 border-2 border-black text-xs space-y-1"
+            class="p-3 rounded-lg bg-slate-50 border-2 border-slate-300 text-xs space-y-1"
           >
             <div class="flex items-center justify-between">
-              <span class="font-black text-black bg-yellow-300 px-2 py-0.5 rounded border border-black">{{ log.aksi }}</span>
+              <span class="font-black text-black bg-slate-200 px-2 py-0.5 rounded border border-slate-400">{{ log.aksi }}</span>
               <span class="text-[10px] text-black font-mono font-bold">{{ formatWaktu(log.waktu) }}</span>
             </div>
             <p class="text-black font-bold">{{ log.catatan }}</p>
@@ -498,7 +498,7 @@ onMounted(() => {
         <div class="flex justify-end pt-2">
           <button
             @click="isLogOpen = false"
-            class="px-4 py-2 bg-black hover:bg-slate-800 text-white text-xs font-black rounded-lg transition"
+            class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg transition"
           >
             Tutup
           </button>

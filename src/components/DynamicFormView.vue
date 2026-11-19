@@ -21,7 +21,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -217,8 +217,10 @@ async function bukaFormIsian() {
           const rKey = getRowId(matchedRow)
           if (!rowsData[rKey]) return
 
+          const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
+
           props.config.numericFields.forEach(sf => {
-            const rawVal = item[sf.key] ?? (sf.apiKey ? item[sf.apiKey] : undefined)
+            const rawVal = sourceItem[sf.key] ?? (sf.apiKey ? sourceItem[sf.apiKey] : undefined)
             const numVal = Number(rawVal) || 0
 
             if (twCfg.autoSumFields?.includes(sf.key)) {
@@ -305,16 +307,17 @@ async function bukaFormIsian() {
           const matchedRow = findConfigRow(item)
           const rKey = matchedRow ? getRowId(matchedRow) : (item.id_klui ?? item.id_jabatan)
           if (rKey && rowsData[rKey]) {
+            const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
             const mapped = { ...rowsData[rKey] }
             props.config.numericFields.forEach(sf => {
-              const rawVal = item[sf.key] ?? (sf.apiKey ? item[sf.apiKey] : undefined)
+              const rawVal = sourceItem[sf.key] ?? (sf.apiKey ? sourceItem[sf.apiKey] : undefined)
               if (rawVal !== undefined && rawVal !== null) {
                 mapped[sf.key] = Number(rawVal) || 0
               }
             })
             if (props.config.textField) {
               const tk = props.config.textField.key
-              const rawText = item[tk] ?? (props.config.textField.apiKey ? item[props.config.textField.apiKey] : undefined)
+              const rawText = sourceItem[tk] ?? (props.config.textField.apiKey ? sourceItem[props.config.textField.apiKey] : undefined)
               mapped[tk] = rawText ?? ''
             }
             rowsData[rKey] = mapped
@@ -467,6 +470,9 @@ async function simpan() {
       payloadBaris = props.config.rows.map(r => {
         const rKey = getRowId(r)
         const rowVal = rowsData[rKey] || {}
+        if (props.config.toApiRow) {
+          return props.config.toApiRow(r, rowVal)
+        }
         const payloadItem = {}
         if (props.config.apiRowKey && r[props.config.apiRowKey] !== undefined) {
           payloadItem[props.config.apiRowKey] = r[props.config.apiRowKey]
@@ -600,7 +606,24 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K5') {
+    if (props.config.kode === 'K6') {
+      await exportK6ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K6',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K5') {
       await exportK5ToExcel({
         config: props.config,
         meta: {
@@ -1460,6 +1483,7 @@ onMounted(() => {
                 :key="`gen-${config.kode}-${getRowId(row)}-${f.key}`"
                 :class="[
                   'p-1 border-r border-slate-300',
+                  f.width || '',
                   isAutoField(f.key) ? 'bg-slate-200/80' : ''
                 ]"
               >

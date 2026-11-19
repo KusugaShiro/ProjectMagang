@@ -18,7 +18,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -77,11 +77,16 @@ const isReadOnly = computed(() => {
   return activeLaporan.value?.status_laporan === 'disahkan'
 })
 
-// Inisialisasi baris kosong untuk form K1, K2, atau K3
+// Cek apakah form berbasis KLUI (K2, K3, K4, dst.)
+const isKluiForm = computed(() => {
+  return props.config.keyField === 'id_klui' || props.config.kode === 'K2' || props.config.kode === 'K3'
+})
+
+// Inisialisasi baris kosong untuk form K1, K2, K3, K4, dst.
 function initEmptyRows() {
   Object.keys(rowsData).forEach(k => delete rowsData[k])
 
-  if (props.config.kode === 'K2' || props.config.kode === 'K3') {
+  if (isKluiForm.value) {
     props.config.rows.forEach(row => {
       const rowItem = {
         id_klui: row.id_klui,
@@ -151,11 +156,27 @@ async function bukaFormIsian() {
     const resModul = await apiGetMatriksModul(doc.id_laporan, props.config.modul || 'k1')
     if (resModul?.data && Array.isArray(resModul.data) && resModul.data.length > 0) {
       resModul.data.forEach(item => {
-        const key = (props.config.kode === 'K2' || props.config.kode === 'K3') ? item.id_klui : item.id_jabatan
+        const key = isKluiForm.value ? item.id_klui : item.id_jabatan
         if (key && rowsData[key]) {
-          rowsData[key] = {
-            ...rowsData[key],
-            ...item,
+          if (isKluiForm.value && props.config.numericFields) {
+            const mapped = { ...rowsData[key] }
+            props.config.numericFields.forEach(sf => {
+              const rawVal = item[sf.key] ?? (sf.apiKey ? item[sf.apiKey] : undefined)
+              if (rawVal !== undefined && rawVal !== null) {
+                mapped[sf.key] = Number(rawVal) || 0
+              }
+            })
+            if (props.config.textField) {
+              const tk = props.config.textField.key
+              const rawText = item[tk] ?? (props.config.textField.apiKey ? item[props.config.textField.apiKey] : undefined)
+              mapped[tk] = rawText ?? ''
+            }
+            rowsData[key] = mapped
+          } else {
+            rowsData[key] = {
+              ...rowsData[key],
+              ...item,
+            }
           }
         }
       })
@@ -186,7 +207,7 @@ function onNumberInput(rowKey, field, event) {
 
 // Komputasi total per baris dan baris JUMLAH
 const summaryTotals = computed(() => {
-  if (props.config.kode === 'K2' || props.config.kode === 'K3') {
+  if (isKluiForm.value) {
     const colTotals = {}
     props.config.numericFields?.forEach(sf => {
       colTotals[sf.key] = 0
@@ -261,6 +282,22 @@ async function simpan() {
       }
       props.config.numericFields.forEach(sf => {
         payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+      })
+      return payloadItem
+    })
+  } else if (isKluiForm.value) {
+    payloadBaris = props.config.rows.map(r => {
+      const rowVal = rowsData[r.id_klui] || {}
+      const payloadItem = {
+        id_klui: r.id_klui,
+      }
+      if (props.config.textField) {
+        const tk = props.config.textField.key
+        const apiTk = props.config.textField.apiKey || tk
+        payloadItem[apiTk] = rowVal[tk] || null
+      }
+      props.config.numericFields.forEach(sf => {
+        payloadItem[sf.apiKey || sf.key] = Number(rowVal[sf.key]) || 0
       })
       return payloadItem
     })
@@ -369,7 +406,22 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K3') {
+    if (props.config.kode === 'K4') {
+      await exportK4ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K4',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K3') {
       await exportK3ToExcel({
         config: props.config,
         meta: {
@@ -561,7 +613,7 @@ onMounted(() => {
         <div>
           <h2 class="text-base font-black text-black flex items-center gap-2">
             <span class="w-3 h-3 rounded-full" :class="isReadOnly ? 'bg-slate-800' : 'bg-slate-500 border border-slate-700'"></span>
-            2. Isi data ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
+            {{ config.tableCardTitlePrefix || '2. Isi data' }} ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
           </h2>
           <div class="flex flex-wrap items-center gap-3 mt-1 text-xs text-black font-bold">
             <span>ID Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
@@ -1084,6 +1136,107 @@ onMounted(() => {
           </tbody>
         </table>
 
+        <!-- ============================================== -->
+        <!-- TABEL UMUM HEADER BERTINGKAT (K4, DST.) -->
+        <!-- Mendukung header multi-tingkat (rowspan & colspan) dari konfigurasi -->
+        <!-- ============================================== -->
+        <table v-else-if="config.headerRows && config.headerRows.length > 0" class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr
+              v-for="(hRow, hIdx) in config.headerRows"
+              :key="`hrow-${hIdx}`"
+              class="border-b border-slate-700"
+            >
+              <th
+                v-for="(cell, cIdx) in hRow"
+                :key="`hcell-${hIdx}-${cIdx}`"
+                :rowspan="cell.rowspan || 1"
+                :colspan="cell.colspan || 1"
+                :title="cell.fullLabel || cell.label"
+                :class="[
+                  'font-black text-center border-r border-slate-700',
+                  hIdx === 0 ? 'p-2' : 'p-1.5',
+                  cell.width || '',
+                  cell.sticky === 'left-0' ? 'sticky left-0 z-20 bg-slate-900 text-white' :
+                  cell.sticky === 'left-12' ? 'sticky left-12 z-20 bg-slate-900 text-white' :
+                  cell.variant === 'primary' ? 'bg-slate-900 text-white' :
+                  cell.variant === 'group' ? 'bg-slate-800 text-white' :
+                  cell.variant === 'leaf' ? 'bg-slate-700 text-slate-100' :
+                  'bg-slate-800 text-slate-100'
+                ]"
+              >
+                {{ cell.label }}
+              </th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-300 text-black">
+            <tr
+              v-for="row in config.rows"
+              :key="row.id_klui"
+              class="hover:bg-slate-100/60 transition font-bold"
+            >
+              <!-- No (menempel saat digeser) -->
+              <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black w-12 min-w-[48px]">
+                {{ row.no }}
+              </td>
+              <!-- Sektor/KLUI (menempel saat digeser) -->
+              <td
+                class="p-2.5 text-center sticky left-12 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black w-24 min-w-[90px]"
+                :title="row.nama_sektor"
+              >
+                {{ row.sektor_klui }}
+              </td>
+              <!-- Kolom Kotak Isian Angka -->
+              <td
+                v-for="f in config.numericFields"
+                :key="`gen-${config.kode}-${row.id_klui}-${f.key}`"
+                class="p-1 border-r border-slate-300"
+              >
+                <input
+                  type="number"
+                  min="0"
+                  :disabled="isReadOnly"
+                  :value="rowsData[row.id_klui]?.[f.key]"
+                  @input="onNumberInput(row.id_klui, f.key, $event)"
+                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                />
+              </td>
+              <!-- Kolom Teks (Ket) -->
+              <td v-if="config.textField" class="p-1">
+                <input
+                  type="text"
+                  maxlength="255"
+                  :disabled="isReadOnly"
+                  v-model="rowsData[row.id_klui][config.textField.key]"
+                  :placeholder="config.textField.placeholder || 'Keterangan...'"
+                  class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-slate-700 text-xs disabled:bg-slate-100 disabled:text-black"
+                />
+              </td>
+            </tr>
+
+            <!-- BARIS JUMLAH TOTAL -->
+            <tr class="bg-slate-800 font-black text-white border-t-4 border-slate-900">
+              <td class="p-2.5 text-center sticky left-0 z-10 bg-slate-800 border-r border-slate-600 font-black text-white">
+                -
+              </td>
+              <td class="p-2.5 text-center sticky left-12 z-10 bg-slate-800 border-r border-slate-600 tracking-wider uppercase font-black text-white">
+                JUMLAH
+              </td>
+              <td
+                v-for="f in config.numericFields"
+                :key="`tot-${config.kode}-${f.key}`"
+                class="p-2.5 text-center border-r border-slate-600 font-mono font-black text-white"
+              >
+                {{ summaryTotals.colTotals?.[f.key] ?? 0 }}
+              </td>
+              <td v-if="config.textField" class="p-2.5 text-center text-white font-black bg-slate-800">
+                -
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
       </div>
 
       <!-- BLOK TANDA TANGAN DINAMIS DARI wilayah_pengawasan (ATURAN BISNIS #5 PRD) -->
@@ -1166,7 +1319,7 @@ onMounted(() => {
         <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        {{ (config.kode === 'K2' || config.kode === 'K3') ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:' }}
+        {{ config.columnDescriptions ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:' }}
       </h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
         <div

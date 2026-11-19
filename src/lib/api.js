@@ -251,10 +251,10 @@ export async function apiGetDaftarLaporan(params = {}) {
 
   const list = res?.data || []
 
-  // Tambahkan referensi modul K1, K2, K3 yang aktif agar tombol aksi pada antarmuka dapat dibuka
+  // Tambahkan referensi modul K1, K2, K3, K4 yang aktif agar tombol aksi pada antarmuka dapat dibuka
   return list.map(item => ({
     ...item,
-    modul_list: ['K1', 'K2', 'K3'],
+    modul_list: ['K1', 'K2', 'K3', 'K4'],
   }))
 }
 

@@ -31,6 +31,7 @@ const formMeta = computed(() => getFormMeta(kodeParam.value))
     <!-- Jika form config sudah tersedia (misal K1) -->
     <DynamicFormView
       v-if="formConfig"
+      :key="kodeParam"
       :config="formConfig"
     />
 

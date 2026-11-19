@@ -389,3 +389,123 @@ export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals })
   const fileName = `K3_${wilayahName}_${bulan}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+
+  const XLSX = await import('xlsx')
+
+  const wsData = [
+    ['DATA JAMSOSTEK - BPJS'],
+    [`Bulan : ${bulan}`],
+    [`Triwulan : TW ${triwulan}`],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K4'}`],
+    [], // Baris kosong
+    // Baris 1 Header (nama grup di kolom pertama grupnya, kolom berikutnya dikosongkan)
+    [
+      'No',
+      'Sektor/KLUI',
+      'Jml Perusahaan', '',
+      'Jumlah TK Wajib', '',
+      'Jumlah TK Terdaftar', '',
+      'Program Terdaftar', '', '', '', '',
+      'BPJS Kesehatan', '', '',
+      'Ket',
+    ],
+    // Baris 2 Header (nama kolom)
+    [
+      '',
+      '',
+      'Wajib', 'Terdaftar',
+      'WNI', 'WNA',
+      'WNI', 'WNA',
+      'JKK', 'JKM', 'JHT', 'JPK Lajang', 'JPK Kel',
+      'Jumlah', 'Lajang', 'Kel',
+      '',
+    ],
+  ]
+
+  // 10 baris data
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    const rowItem = [
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || '',
+    ]
+    wsData.push(rowItem)
+  })
+
+  // Baris JUMLAH Total (14 kolom angka dijumlah, kolom Ket berisi "-")
+  const colTotals = summaryTotals.colTotals || {}
+  const totalRow = [
+    '',
+    'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ]
+  wsData.push(totalRow)
+
+  // Baris kosong
+  wsData.push([])
+
+  // Daftar keterangan dengan format: 1 | JKK | = Jaminan Kecelakaan Kerja, dst. sampai 6
+  if (config.columnDescriptions && config.columnDescriptions.length > 0) {
+    config.columnDescriptions.forEach((desc, idx) => {
+      wsData.push([idx + 1, desc.label, `= ${desc.text}`])
+    })
+  }
+
+  // Baris kosong sebelum tanda tangan
+  wsData.push([])
+  wsData.push([])
+
+  // Footer Tanda Tangan dari wilayah_pengawasan
+  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
+  const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
+  const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
+  const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
+
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, ${tahun}`])
+  wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
+  wsData.push([])
+  wsData.push([])
+  wsData.push([])
+  wsData.push(['', namaKepala, '', '', '', '', '', '', '', '', '', '', '', namaPembuat])
+  wsData.push(['', nipKepala, '', '', '', '', '', '', '', '', '', '', '', nipPembuat])
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk 2 baris header
+  ws['!merges'] = [
+    { s: { r: 7, c: 0 }, e: { r: 8, c: 0 } },   // No
+    { s: { r: 7, c: 1 }, e: { r: 8, c: 1 } },   // Sektor/KLUI
+    { s: { r: 7, c: 2 }, e: { r: 7, c: 3 } },   // Jml Perusahaan
+    { s: { r: 7, c: 4 }, e: { r: 7, c: 5 } },   // Jumlah TK Wajib
+    { s: { r: 7, c: 6 }, e: { r: 7, c: 7 } },   // Jumlah TK Terdaftar
+    { s: { r: 7, c: 8 }, e: { r: 7, c: 12 } },  // Program Terdaftar
+    { s: { r: 7, c: 13 }, e: { r: 7, c: 15 } }, // BPJS Kesehatan
+    { s: { r: 7, c: 16 }, e: { r: 8, c: 16 } }, // Ket
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 12 }, // Sektor/KLUI
+    { wch: 10 }, { wch: 11 }, // Jml Perusahaan: Wajib, Terdaftar
+    { wch: 10 }, { wch: 10 }, // Jumlah TK Wajib: WNI, WNA
+    { wch: 10 }, { wch: 10 }, // Jumlah TK Terdaftar: WNI, WNA
+    { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 12 }, { wch: 10 }, // Program Terdaftar
+    { wch: 10 }, { wch: 10 }, { wch: 10 }, // BPJS Kesehatan
+    { wch: 24 }, // Ket
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K4')
+
+  const fileName = `K4_${wilayahName}_${bulan}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

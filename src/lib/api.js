@@ -251,10 +251,10 @@ export async function apiGetDaftarLaporan(params = {}) {
 
   const list = res?.data || []
 
-  // Tambahkan referensi modul K1, K2, K3, K4 yang aktif agar tombol aksi pada antarmuka dapat dibuka
+  // Tambahkan referensi modul K1, K2, K3, K4, K5 yang aktif agar tombol aksi pada antarmuka dapat dibuka
   return list.map(item => ({
     ...item,
-    modul_list: ['K1', 'K2', 'K3', 'K4'],
+    modul_list: ['K1', 'K2', 'K3', 'K4', 'K5'],
   }))
 }
 
@@ -376,6 +376,62 @@ export async function apiGetRekapTriwulan(modul = 'k1', { id_wilayah, tahun, tri
     isJson: false,
   })
   return res
+}
+
+/**
+ * Ambil laporan bulanan untuk 1 bulan dan 1 modul tertentu (digunakan untuk agregasi Triwulan K5–K10).
+ * Mengembalikan { doc, data, meta } bila laporan bulanan dan data modulnya ada, atau null bila belum tersimpan.
+ */
+export async function ambilLaporan(modul, { id_wilayah, tahun, bulan }) {
+  const list = await apiGetDaftarLaporan({
+    id_wilayah: Number(id_wilayah),
+    tahun: Number(tahun),
+    bulan: Number(bulan),
+  })
+  const doc = list.find(
+    l => l.id_wilayah === Number(id_wilayah) && l.tahun === Number(tahun) && l.bulan === Number(bulan)
+  )
+  if (!doc) return null
+
+  const resModul = await apiGetMatriksModul(doc.id_laporan, modul)
+  if (!resModul?.data || !Array.isArray(resModul.data) || resModul.data.length === 0) {
+    return null
+  }
+  return {
+    doc,
+    data: resModul.data,
+    meta: resModul.meta,
+  }
+}
+
+// Helper penyimpanan khusus kolom editable pada mode Triwulan (mis. Jumlah & Keterangan pada K5)
+// Kolom otomatis TIDAK disimpan di sini karena selalu dihitung ulang dari laporan bulanan.
+function getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan }) {
+  return `rekap_triwulan_editable:${String(modul).toLowerCase()}:${Number(id_wilayah)}:${Number(tahun)}:TW${Number(triwulan)}`
+}
+
+export function ambilSimpananTriwulan(modul, { id_wilayah, tahun, triwulan }) {
+  try {
+    const raw = localStorage.getItem(getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan }))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function simpanTriwulan(modul, { id_wilayah, tahun, triwulan }, editableRows) {
+  const key = getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan })
+  localStorage.setItem(key, JSON.stringify({
+    updated_at: new Date().toISOString(),
+    rows: editableRows,
+  }))
+  return true
+}
+
+export function hapusSimpananTriwulan(modul, { id_wilayah, tahun, triwulan }) {
+  try {
+    localStorage.removeItem(getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan }))
+  } catch {}
 }
 
 // ==========================================

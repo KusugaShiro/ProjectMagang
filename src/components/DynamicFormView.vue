@@ -11,6 +11,9 @@ import {
   apiSahkanLaporan,
   apiKembalikanLaporan,
   hitungTriwulanDB,
+  ambilLaporan,
+  ambilSimpananTriwulan,
+  simpanTriwulan,
 } from '../lib/api'
 import {
   currentUser,
@@ -18,7 +21,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -46,15 +49,32 @@ const bulanList = [
   { value: 12, label: 'Desember' },
 ]
 
+const triwulanOptions = [
+  { value: 1, romawi: 'I', label: 'Triwulan I (Januari - Maret)', bulanList: [1, 2, 3] },
+  { value: 2, romawi: 'II', label: 'Triwulan II (April - Juni)', bulanList: [4, 5, 6] },
+  { value: 3, romawi: 'III', label: 'Triwulan III (Juli - September)', bulanList: [7, 8, 9] },
+  { value: 4, romawi: 'IV', label: 'Triwulan IV (Oktober - Desember)', bulanList: [10, 11, 12] },
+]
+
 // State Filter Periode
 const filter = reactive({
   id_wilayah: 1,
+  jenis_periode: 'bulanan',
   bulan: 1,
+  triwulan: 1,
   tahun: 2026,
 })
 
 // Rumus Triwulan sesuai Aturan Bisnis #1 PRD: (bulan + 2) DIV 3
 const hitungTriwulan = computed(() => hitungTriwulanDB(filter.bulan))
+
+// Dukungan mode Triwulan otomatis (untuk K5 s.d. K10 yang memiliki triwulanConfig)
+const supportsTriwulanMode = computed(() => Boolean(props.config.triwulanConfig))
+const isTriwulanMode = computed(() => supportsTriwulanMode.value && filter.jenis_periode === 'triwulan')
+const activeTriwulanRomawi = computed(() => {
+  const tw = activeLaporan.value?.triwulan || filter.triwulan
+  return triwulanOptions.find(t => t.value === tw)?.romawi || 'I'
+})
 
 // State Dokumen Laporan Aktif
 const isFormOpen = ref(false)
@@ -65,6 +85,8 @@ const isWorkflowLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const infoMessage = ref('')
+const triwulanBulanDipakai = ref([])
+const triwulanBulanBelumTersimpan = ref([])
 
 // Penandatangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
 const activeWilayahInfo = computed(() => {
@@ -77,19 +99,39 @@ const isReadOnly = computed(() => {
   return activeLaporan.value?.status_laporan === 'disahkan'
 })
 
-// Cek apakah form berbasis KLUI (K2, K3, K4, dst.)
+// Cek apakah form berbasis matriks generik (K2, K3, K4, K5, dst.)
+const rowKeyField = computed(() => props.config.keyField || 'id_klui')
 const isKluiForm = computed(() => {
   return props.config.keyField === 'id_klui' || props.config.kode === 'K2' || props.config.kode === 'K3'
 })
+const isGenericMatrixForm = computed(() => {
+  return isKluiForm.value || Boolean(props.config.headerRows?.length)
+})
 
-// Inisialisasi baris kosong untuk form K1, K2, K3, K4, dst.
+function getRowId(row) {
+  return row[rowKeyField.value] ?? row.id_klui ?? row.key ?? row.id_jabatan
+}
+
+function isAutoField(fieldKey) {
+  return Boolean(
+    isTriwulanMode.value &&
+    activeLaporan.value?.jenis_periode === 'triwulan' &&
+    props.config.triwulanConfig?.autoSumFields?.includes(fieldKey)
+  )
+}
+
+// Inisialisasi baris kosong untuk form K1, K2, K3, K4, K5, dst.
 function initEmptyRows() {
   Object.keys(rowsData).forEach(k => delete rowsData[k])
 
-  if (isKluiForm.value) {
+  if (isGenericMatrixForm.value) {
     props.config.rows.forEach(row => {
+      const rKey = getRowId(row)
       const rowItem = {
-        id_klui: row.id_klui,
+        [rowKeyField.value]: rKey,
+      }
+      if (props.config.apiRowKey && row[props.config.apiRowKey] !== undefined) {
+        rowItem[props.config.apiRowKey] = row[props.config.apiRowKey]
       }
       if (props.config.textField) {
         rowItem[props.config.textField.key] = ''
@@ -97,7 +139,7 @@ function initEmptyRows() {
       props.config.numericFields.forEach(sf => {
         rowItem[sf.key] = 0
       })
-      rowsData[row.id_klui] = rowItem
+      rowsData[rKey] = rowItem
     })
   } else {
     props.config.rows.forEach(row => {
@@ -117,14 +159,117 @@ function initEmptyRows() {
   }
 }
 
-// Buka form isian / Buat dokumen laporan bulanan
+// Helper cari definisi baris dari item respons API
+function findConfigRow(item) {
+  return props.config.rows.find(r => {
+    const rKey = getRowId(r)
+    if (item[rowKeyField.value] !== undefined && item[rowKeyField.value] === rKey) return true
+    if (
+      props.config.apiRowKey &&
+      item[props.config.apiRowKey] !== undefined &&
+      Number(item[props.config.apiRowKey]) === Number(r[props.config.apiRowKey])
+    ) {
+      return true
+    }
+    return false
+  })
+}
+
+// Buka form isian / Buat dokumen laporan bulanan atau agregasi Triwulan
 async function bukaFormIsian() {
   errorMessage.value = ''
   successMessage.value = ''
   infoMessage.value = ''
+  triwulanBulanDipakai.value = []
+  triwulanBulanBelumTersimpan.value = []
   isLoading.value = true
 
   try {
+    // MODE TRIWULAN OTOMATIS (K5 s.d. K10)
+    if (isTriwulanMode.value) {
+      const twOpt = triwulanOptions.find(t => t.value === Number(filter.triwulan)) || triwulanOptions[0]
+      const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(filter.id_wilayah)) || null
+      const twCfg = props.config.triwulanConfig
+
+      initEmptyRows()
+
+      const dipakai = []
+      const belumTersimpan = []
+
+      for (const b of twOpt.bulanList) {
+        const namaBulan = bulanList.find(bl => bl.value === b)?.label || `Bulan ${b}`
+        const resBulan = await ambilLaporan(props.config.modul, {
+          id_wilayah: Number(filter.id_wilayah),
+          tahun: Number(filter.tahun),
+          bulan: b,
+        })
+
+        if (!resBulan || !resBulan.data || resBulan.data.length === 0) {
+          belumTersimpan.push(namaBulan)
+          continue
+        }
+
+        dipakai.push(namaBulan)
+
+        resBulan.data.forEach(item => {
+          const matchedRow = findConfigRow(item)
+          if (!matchedRow) return
+          const rKey = getRowId(matchedRow)
+          if (!rowsData[rKey]) return
+
+          props.config.numericFields.forEach(sf => {
+            const rawVal = item[sf.key] ?? (sf.apiKey ? item[sf.apiKey] : undefined)
+            const numVal = Number(rawVal) || 0
+
+            if (twCfg.autoSumFields?.includes(sf.key)) {
+              rowsData[rKey][sf.key] = (Number(rowsData[rKey][sf.key]) || 0) + numVal
+            } else if (twCfg.lastNonZeroFields?.includes(sf.key)) {
+              if (numVal !== 0) {
+                rowsData[rKey][sf.key] = numVal
+              }
+            }
+          })
+        })
+      }
+
+      // Jika laporan triwulan sudah pernah disimpan, pakai nilai editable (Jumlah & Keterangan) yang tersimpan
+      const savedTriwulan = ambilSimpananTriwulan(props.config.modul, {
+        id_wilayah: Number(filter.id_wilayah),
+        tahun: Number(filter.tahun),
+        triwulan: twOpt.value,
+      })
+      if (savedTriwulan?.rows) {
+        props.config.rows.forEach(r => {
+          const rKey = getRowId(r)
+          const savedRow = savedTriwulan.rows[rKey]
+          if (!savedRow || !rowsData[rKey]) return
+          ;(twCfg.editableFields || []).forEach(ef => {
+            if (savedRow[ef] !== undefined && savedRow[ef] !== null) {
+              rowsData[rKey][ef] = ef === props.config.textField?.key ? String(savedRow[ef]) : (Number(savedRow[ef]) || 0)
+            }
+          })
+        })
+      }
+
+      triwulanBulanDipakai.value = dipakai
+      triwulanBulanBelumTersimpan.value = belumTersimpan
+
+      activeLaporan.value = {
+        id_laporan: null,
+        id_wilayah: Number(filter.id_wilayah),
+        tahun: Number(filter.tahun),
+        bulan: null,
+        triwulan: twOpt.value,
+        jenis_periode: 'triwulan',
+        status_laporan: 'draf',
+        wilayah: wilObj,
+      }
+
+      isFormOpen.value = true
+      return
+    }
+
+    // MODE BULANAN (K1 s.d. K10)
     const list = await apiGetDaftarLaporan({
       id_wilayah: filter.id_wilayah,
       tahun: filter.tahun,
@@ -150,16 +295,17 @@ async function bukaFormIsian() {
       }
     }
 
-    activeLaporan.value = doc
+    activeLaporan.value = { ...doc, jenis_periode: 'bulanan' }
     initEmptyRows()
 
     const resModul = await apiGetMatriksModul(doc.id_laporan, props.config.modul || 'k1')
     if (resModul?.data && Array.isArray(resModul.data) && resModul.data.length > 0) {
       resModul.data.forEach(item => {
-        const key = isKluiForm.value ? item.id_klui : item.id_jabatan
-        if (key && rowsData[key]) {
-          if (isKluiForm.value && props.config.numericFields) {
-            const mapped = { ...rowsData[key] }
+        if (isGenericMatrixForm.value && props.config.numericFields) {
+          const matchedRow = findConfigRow(item)
+          const rKey = matchedRow ? getRowId(matchedRow) : (item.id_klui ?? item.id_jabatan)
+          if (rKey && rowsData[rKey]) {
+            const mapped = { ...rowsData[rKey] }
             props.config.numericFields.forEach(sf => {
               const rawVal = item[sf.key] ?? (sf.apiKey ? item[sf.apiKey] : undefined)
               if (rawVal !== undefined && rawVal !== null) {
@@ -171,8 +317,11 @@ async function bukaFormIsian() {
               const rawText = item[tk] ?? (props.config.textField.apiKey ? item[props.config.textField.apiKey] : undefined)
               mapped[tk] = rawText ?? ''
             }
-            rowsData[key] = mapped
-          } else {
+            rowsData[rKey] = mapped
+          }
+        } else {
+          const key = item.id_jabatan
+          if (key && rowsData[key]) {
             rowsData[key] = {
               ...rowsData[key],
               ...item,
@@ -192,7 +341,7 @@ async function bukaFormIsian() {
 
 // Sanitasi input angka (int >= 0)
 function onNumberInput(rowKey, field, event) {
-  if (isReadOnly.value) return
+  if (isReadOnly.value || isAutoField(field)) return
   const raw = event.target.value
   if (raw === '' || isNaN(raw)) {
     rowsData[rowKey][field] = 0
@@ -207,14 +356,15 @@ function onNumberInput(rowKey, field, event) {
 
 // Komputasi total per baris dan baris JUMLAH
 const summaryTotals = computed(() => {
-  if (isKluiForm.value) {
+  if (isGenericMatrixForm.value) {
     const colTotals = {}
     props.config.numericFields?.forEach(sf => {
       colTotals[sf.key] = 0
     })
 
     props.config.rows?.forEach(row => {
-      const rowVal = rowsData[row.id_klui] || {}
+      const rKey = getRowId(row)
+      const rowVal = rowsData[rKey] || {}
       props.config.numericFields?.forEach(sf => {
         colTotals[sf.key] += Number(rowVal[sf.key]) || 0
       })
@@ -260,66 +410,97 @@ async function simpan() {
   successMessage.value = ''
   isLoading.value = true
 
-  let payloadBaris = []
-  if (props.config.kode === 'K2') {
-    payloadBaris = props.config.rows.map(r => {
-      const rowVal = rowsData[r.id_klui] || {}
-      const payloadItem = {
-        id_klui: r.id_klui,
-        penghargaan_k3: Number(rowVal.penghargaan_k3) || 0,
-      }
-      props.config.numericFields.forEach(sf => {
-        payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+  try {
+    // MODE TRIWULAN: simpan hanya kolom editable (mis. Jumlah dan Keterangan); kolom otomatis tidak ikut disimpan
+    if (activeLaporan.value.jenis_periode === 'triwulan' && props.config.triwulanConfig) {
+      const editableFields = props.config.triwulanConfig.editableFields || []
+      const editableRows = {}
+      props.config.rows.forEach(r => {
+        const rKey = getRowId(r)
+        const rowVal = rowsData[rKey] || {}
+        const item = {}
+        editableFields.forEach(ef => {
+          item[ef] = ef === props.config.textField?.key ? (rowVal[ef] || '') : (Number(rowVal[ef]) || 0)
+        })
+        editableRows[rKey] = item
       })
-      return payloadItem
-    })
-  } else if (props.config.kode === 'K3') {
-    payloadBaris = props.config.rows.map(r => {
-      const rowVal = rowsData[r.id_klui] || {}
-      const payloadItem = {
-        id_klui: r.id_klui,
-        keterangan: rowVal.keterangan || null,
-      }
-      props.config.numericFields.forEach(sf => {
-        payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
-      })
-      return payloadItem
-    })
-  } else if (isKluiForm.value) {
-    payloadBaris = props.config.rows.map(r => {
-      const rowVal = rowsData[r.id_klui] || {}
-      const payloadItem = {
-        id_klui: r.id_klui,
-      }
-      if (props.config.textField) {
-        const tk = props.config.textField.key
-        const apiTk = props.config.textField.apiKey || tk
-        payloadItem[apiTk] = rowVal[tk] || null
-      }
-      props.config.numericFields.forEach(sf => {
-        payloadItem[sf.apiKey || sf.key] = Number(rowVal[sf.key]) || 0
-      })
-      return payloadItem
-    })
-  } else {
-    payloadBaris = props.config.rows
-      .filter(r => !r.isGroup && r.id_jabatan)
-      .map(r => {
-        const rowVal = rowsData[r.id_jabatan] || {}
+
+      simpanTriwulan(props.config.modul, {
+        id_wilayah: activeLaporan.value.id_wilayah,
+        tahun: activeLaporan.value.tahun,
+        triwulan: activeLaporan.value.triwulan,
+      }, editableRows)
+
+      successMessage.value = 'Laporan tersimpan.'
+      setTimeout(() => {
+        if (successMessage.value === 'Laporan tersimpan.') successMessage.value = ''
+      }, 5000)
+      return
+    }
+
+    let payloadBaris = []
+    if (props.config.kode === 'K2') {
+      payloadBaris = props.config.rows.map(r => {
+        const rowVal = rowsData[r.id_klui] || {}
         const payloadItem = {
-          id_jabatan: r.id_jabatan,
-          jml_umum: Number(rowVal.jml_umum) || 0,
-          jml_ppns: Number(rowVal.jml_ppns) || 0,
-          keterangan: rowVal.keterangan || null,
+          id_klui: r.id_klui,
+          penghargaan_k3: Number(rowVal.penghargaan_k3) || 0,
         }
-        props.config.spesialisFields?.forEach(sf => {
+        props.config.numericFields.forEach(sf => {
           payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
         })
         return payloadItem
       })
-  }
+    } else if (props.config.kode === 'K3') {
+      payloadBaris = props.config.rows.map(r => {
+        const rowVal = rowsData[r.id_klui] || {}
+        const payloadItem = {
+          id_klui: r.id_klui,
+          keterangan: rowVal.keterangan || null,
+        }
+        props.config.numericFields.forEach(sf => {
+          payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+        })
+        return payloadItem
+      })
+    } else if (isGenericMatrixForm.value) {
+      payloadBaris = props.config.rows.map(r => {
+        const rKey = getRowId(r)
+        const rowVal = rowsData[rKey] || {}
+        const payloadItem = {}
+        if (props.config.apiRowKey && r[props.config.apiRowKey] !== undefined) {
+          payloadItem[props.config.apiRowKey] = r[props.config.apiRowKey]
+        } else {
+          payloadItem[rowKeyField.value] = rKey
+        }
+        if (props.config.textField) {
+          const tk = props.config.textField.key
+          const apiTk = props.config.textField.apiKey || tk
+          payloadItem[apiTk] = rowVal[tk] || null
+        }
+        props.config.numericFields.forEach(sf => {
+          payloadItem[sf.apiKey || sf.key] = Number(rowVal[sf.key]) || 0
+        })
+        return payloadItem
+      })
+    } else {
+      payloadBaris = props.config.rows
+        .filter(r => !r.isGroup && r.id_jabatan)
+        .map(r => {
+          const rowVal = rowsData[r.id_jabatan] || {}
+          const payloadItem = {
+            id_jabatan: r.id_jabatan,
+            jml_umum: Number(rowVal.jml_umum) || 0,
+            jml_ppns: Number(rowVal.jml_ppns) || 0,
+            keterangan: rowVal.keterangan || null,
+          }
+          props.config.spesialisFields?.forEach(sf => {
+            payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+          })
+          return payloadItem
+        })
+    }
 
-  try {
     await apiSimpanMatriksModul(activeLaporan.value.id_laporan, props.config.modul || 'k1', payloadBaris)
     successMessage.value = 'Laporan tersimpan.'
     setTimeout(() => {
@@ -388,7 +569,18 @@ async function aksiKembalikan() {
 function resetKeNol() {
   if (isReadOnly.value) return
   if (!confirm('Kosongkan semua isian tabel ke angka nol?')) return
-  initEmptyRows()
+  if (activeLaporan.value?.jenis_periode === 'triwulan' && props.config.triwulanConfig) {
+    const editableFields = props.config.triwulanConfig.editableFields || []
+    props.config.rows.forEach(r => {
+      const rKey = getRowId(r)
+      if (!rowsData[rKey]) return
+      editableFields.forEach(ef => {
+        rowsData[rKey][ef] = ef === props.config.textField?.key ? '' : 0
+      })
+    })
+  } else {
+    initEmptyRows()
+  }
   successMessage.value = ''
 }
 
@@ -398,6 +590,8 @@ function tutupForm() {
   successMessage.value = ''
   infoMessage.value = ''
   errorMessage.value = ''
+  triwulanBulanDipakai.value = []
+  triwulanBulanBelumTersimpan.value = []
 }
 
 async function downloadExcel() {
@@ -406,7 +600,24 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K4') {
+    if (props.config.kode === 'K5') {
+      await exportK5ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K5',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K4') {
       await exportK4ToExcel({
         config: props.config,
         meta: {
@@ -535,7 +746,7 @@ onMounted(() => {
         </span>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div :class="['grid grid-cols-1 sm:grid-cols-2 gap-4', supportsTriwulanMode && !isTriwulanMode ? 'lg:grid-cols-5' : 'lg:grid-cols-4']">
         <!-- Wilayah -->
         <div>
           <label class="block text-xs font-black text-black mb-1.5">Wilayah Pengawasan</label>
@@ -551,8 +762,20 @@ onMounted(() => {
           <p v-if="isOperator" class="text-[11px] text-black font-bold mt-1">Terkunci untuk operator kabupaten</p>
         </div>
 
-        <!-- Bulan -->
-        <div>
+        <!-- Jenis Periode (khusus form yang mendukung agregasi Triwulan, mis. K5 s.d. K10) -->
+        <div v-if="supportsTriwulanMode">
+          <label class="block text-xs font-black text-black mb-1.5">Jenis Periode</label>
+          <select
+            v-model="filter.jenis_periode"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+          >
+            <option value="bulanan">Bulanan</option>
+            <option value="triwulan">Triwulan</option>
+          </select>
+        </div>
+
+        <!-- Bulan (tampil pada mode Bulanan) -->
+        <div v-if="!isTriwulanMode">
           <label class="block text-xs font-black text-black mb-1.5">Bulan Laporan</label>
           <select
             v-model.number="filter.bulan"
@@ -564,13 +787,24 @@ onMounted(() => {
           </select>
         </div>
 
-        <!-- Triwulan (Auto-calculated via PRD Formula: (bulan + 2) DIV 3) -->
-        <div>
+        <!-- Triwulan (Otomatis pada mode Bulanan; Pilihan I–IV pada mode Triwulan) -->
+        <div v-if="!isTriwulanMode">
           <label class="block text-xs font-black text-black mb-1.5">Triwulan (Otomatis)</label>
           <div class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm font-black flex items-center justify-between">
             <span>Triwulan {{ hitungTriwulan }}</span>
             <span class="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-900 border border-slate-400 font-black">TW {{ hitungTriwulan }}</span>
           </div>
+        </div>
+        <div v-else>
+          <label class="block text-xs font-black text-black mb-1.5">Triwulan</label>
+          <select
+            v-model.number="filter.triwulan"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+          >
+            <option v-for="tw in triwulanOptions" :key="tw.value" :value="tw.value">
+              {{ tw.label }}
+            </option>
+          </select>
         </div>
 
         <!-- Tahun -->
@@ -613,15 +847,17 @@ onMounted(() => {
         <div>
           <h2 class="text-base font-black text-black flex items-center gap-2">
             <span class="w-3 h-3 rounded-full" :class="isReadOnly ? 'bg-slate-800' : 'bg-slate-500 border border-slate-700'"></span>
-            {{ config.tableCardTitlePrefix || '2. Isi data' }} ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
+            {{ config.tableCardTitlePrefix || '2. Isi data' }} ({{ activeLaporan.wilayah?.nama_kabupaten_kota || 'Wilayah' }} - {{ activeLaporan.jenis_periode === 'triwulan' ? `Triwulan ${activeTriwulanRomawi}` : bulanList.find(b => b.value === activeLaporan.bulan)?.label }} {{ activeLaporan.tahun }})
           </h2>
           <div class="flex flex-wrap items-center gap-3 mt-1 text-xs text-black font-bold">
-            <span>ID Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
-            <span>&bull;</span>
+            <template v-if="activeLaporan.id_laporan">
+              <span>ID Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
+              <span>&bull;</span>
+            </template>
             <span>Triwulan: <strong class="font-mono text-black">TW {{ activeLaporan.triwulan }}</strong></span>
             <span>&bull;</span>
             <span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-400 text-[11px]">
-              Tabel DB: <strong>{{ config.tabel_db || 'rekap_' + (config.modul || 'k1') }}</strong> (Snapshot Akhir TW)
+              Tabel DB: <strong>{{ config.tabel_db || 'rekap_' + (config.modul || 'k1') }}</strong> ({{ config.triwulanConfig ? 'Agregasi SUM 3 Bulan' : 'Snapshot Akhir TW' }})
             </span>
           </div>
         </div>
@@ -659,7 +895,7 @@ onMounted(() => {
 
           <!-- Tombol Kirim -->
           <button
-            v-if="activeLaporan.status_laporan === 'draf' && (isOperator || isAdmin)"
+            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf' && (isOperator || isAdmin)"
             @click="aksiKirim"
             :disabled="isWorkflowLoading"
             class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white border-2 border-slate-900 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
@@ -705,6 +941,32 @@ onMounted(() => {
         </svg>
         <span class="text-black">
           Laporan telah disahkan pada <strong>{{ activeLaporan.tanggal_pengesahan }}</strong>. Modul K1 s.d. K10 berstatus <strong>read-only</strong> dan perubahan data dikunci (HTTP 403 Forbidden).
+        </span>
+      </div>
+
+      <!-- Kotak Info Mode Triwulan (K5 s.d. K10) -->
+      <div
+        v-if="activeLaporan.jenis_periode === 'triwulan' && config.triwulanConfig"
+        class="p-3.5 rounded-lg bg-slate-100 border-2 border-slate-400 text-black text-xs flex items-start gap-2.5 font-bold"
+      >
+        <svg class="w-5 h-5 shrink-0 text-slate-700 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>
+          Triwulan dihitung otomatis dari laporan bulanan, jadi kolom kegiatan tidak bisa diedit. Kolom Jumlah dan Keterangan tetap bisa diisi. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
+        </span>
+      </div>
+
+      <!-- Kotak Peringatan Merah jika ada bulan belum tersimpan pada mode Triwulan -->
+      <div
+        v-if="activeLaporan.jenis_periode === 'triwulan' && config.triwulanConfig && triwulanBulanBelumTersimpan.length > 0"
+        class="p-3.5 rounded-lg bg-red-100 border-2 border-red-500 text-red-950 text-xs flex items-start gap-2.5 font-bold"
+      >
+        <svg class="w-5 h-5 shrink-0 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span>
+          Laporan bulan {{ triwulanBulanBelumTersimpan.join(', ') }} belum tersimpan, jadi dihitung 0.
         </span>
       </div>
 
@@ -1173,42 +1435,55 @@ onMounted(() => {
           <tbody class="divide-y divide-slate-300 text-black">
             <tr
               v-for="row in config.rows"
-              :key="row.id_klui"
+              :key="getRowId(row)"
               class="hover:bg-slate-100/60 transition font-bold"
             >
               <!-- No (menempel saat digeser) -->
               <td class="p-2.5 text-center sticky left-0 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black w-12 min-w-[48px]">
                 {{ row.no }}
               </td>
-              <!-- Sektor/KLUI (menempel saat digeser) -->
+              <!-- Kolom kedua (menempel saat digeser): Jabatan atau Sektor/KLUI -->
               <td
-                class="p-2.5 text-center sticky left-12 z-10 bg-white border-r-2 border-slate-300 text-black font-mono font-black w-24 min-w-[90px]"
-                :title="row.nama_sektor"
+                :class="[
+                  'p-2.5 sticky left-12 z-10 bg-white border-r-2 border-slate-300 text-black font-black',
+                  config.rowType === 'jabatan'
+                    ? 'text-left whitespace-nowrap w-52 min-w-[200px]'
+                    : 'text-center font-mono w-24 min-w-[90px]'
+                ]"
+                :title="row.nama_sektor || row.label"
               >
-                {{ row.sektor_klui }}
+                {{ config.rowType === 'jabatan' ? row.label : row.sektor_klui }}
               </td>
               <!-- Kolom Kotak Isian Angka -->
               <td
                 v-for="f in config.numericFields"
-                :key="`gen-${config.kode}-${row.id_klui}-${f.key}`"
-                class="p-1 border-r border-slate-300"
+                :key="`gen-${config.kode}-${getRowId(row)}-${f.key}`"
+                :class="[
+                  'p-1 border-r border-slate-300',
+                  isAutoField(f.key) ? 'bg-slate-200/80' : ''
+                ]"
               >
                 <input
                   type="number"
                   min="0"
-                  :disabled="isReadOnly"
-                  :value="rowsData[row.id_klui]?.[f.key]"
-                  @input="onNumberInput(row.id_klui, f.key, $event)"
-                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                  :disabled="isReadOnly || isAutoField(f.key)"
+                  :value="rowsData[getRowId(row)]?.[f.key]"
+                  @input="onNumberInput(getRowId(row), f.key, $event)"
+                  :class="[
+                    'w-full text-center border-2 font-black rounded py-1 px-1 focus:outline-none font-mono',
+                    isAutoField(f.key)
+                      ? 'bg-slate-200 border-slate-400 text-slate-700 cursor-not-allowed'
+                      : 'bg-white border-slate-300 text-black focus:border-slate-700 disabled:bg-slate-100 disabled:text-black'
+                  ]"
                 />
               </td>
-              <!-- Kolom Teks (Ket) -->
+              <!-- Kolom Teks (Ket / Keterangan) -->
               <td v-if="config.textField" class="p-1">
                 <input
                   type="text"
                   maxlength="255"
                   :disabled="isReadOnly"
-                  v-model="rowsData[row.id_klui][config.textField.key]"
+                  v-model="rowsData[getRowId(row)][config.textField.key]"
                   :placeholder="config.textField.placeholder || 'Keterangan...'"
                   class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-slate-700 text-xs disabled:bg-slate-100 disabled:text-black"
                 />
@@ -1220,7 +1495,12 @@ onMounted(() => {
               <td class="p-2.5 text-center sticky left-0 z-10 bg-slate-800 border-r border-slate-600 font-black text-white">
                 -
               </td>
-              <td class="p-2.5 text-center sticky left-12 z-10 bg-slate-800 border-r border-slate-600 tracking-wider uppercase font-black text-white">
+              <td
+                :class="[
+                  'p-2.5 sticky left-12 z-10 bg-slate-800 border-r border-slate-600 tracking-wider uppercase font-black text-white',
+                  config.rowType === 'jabatan' ? 'text-left' : 'text-center'
+                ]"
+              >
                 JUMLAH
               </td>
               <td

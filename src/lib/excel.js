@@ -509,3 +509,118 @@ export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals })
   const fileName = `K4_${wilayahName}_${bulan}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+export async function exportK5ToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode, wilayahObj } = meta
+
+  const XLSX = await import('xlsx')
+
+  const isTriwulan = jenisPeriode === 'triwulan'
+  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
+  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+
+  const wsData = [
+    ['KEGIATAN PEMERIKSAAN KETENAGAKERJAAN'],
+    [periodeLine],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K5'}`],
+    [], // Baris kosong
+    // Baris 1 Header
+    [
+      'No',
+      'Jabatan Pengawas Ketenagakerjaan',
+      'Data Pengawas',
+      'Kegiatan Pemeriksaan', '', '', '',
+      'Kegiatan Pembinaan', '',
+      'Keterangan',
+    ],
+    // Baris 2 Header
+    [
+      '',
+      '',
+      'Jumlah',
+      'Pertama', 'Berkala', 'Ulang', 'Khusus',
+      'NP. I', 'NP. II',
+      '',
+    ],
+  ]
+
+  // 2 baris data jabatan (Pertama, Muda)
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.key] || {}
+    const rowItem = [
+      rowDef.no,
+      rowDef.label,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || '',
+    ]
+    wsData.push(rowItem)
+  })
+
+  // Baris JUMLAH Total (7 kolom angka dijumlah, kolom Keterangan berisi "-")
+  const colTotals = summaryTotals.colTotals || {}
+  const totalRow = [
+    '',
+    'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ]
+  wsData.push(totalRow)
+
+  // Baris kosong
+  wsData.push([])
+
+  // Keterangan :
+  wsData.push(['Keterangan :'])
+  if (config.columnDescriptions && config.columnDescriptions.length > 0) {
+    config.columnDescriptions.forEach((desc, idx) => {
+      wsData.push([idx + 1, desc.label, `= ${desc.text}`])
+    })
+  }
+
+  // Baris kosong sebelum tanda tangan
+  wsData.push([])
+  wsData.push([])
+
+  // Footer Tanda Tangan
+  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
+  const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
+  const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
+  const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
+
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', `${namaBalai}, ${tahun}`])
+  wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
+  wsData.push([])
+  wsData.push([])
+  wsData.push([])
+  wsData.push(['', namaKepala, '', '', '', '', '', namaPembuat])
+  wsData.push(['', nipKepala, '', '', '', '', '', nipPembuat])
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk 2 baris header (indeks baris 6 & 7 karena 6 baris awal: 0..5)
+  ws['!merges'] = [
+    { s: { r: 6, c: 0 }, e: { r: 7, c: 0 } }, // No
+    { s: { r: 6, c: 1 }, e: { r: 7, c: 1 } }, // Jabatan Pengawas Ketenagakerjaan
+    { s: { r: 6, c: 3 }, e: { r: 6, c: 6 } }, // Kegiatan Pemeriksaan
+    { s: { r: 6, c: 7 }, e: { r: 6, c: 8 } }, // Kegiatan Pembinaan
+    { s: { r: 6, c: 9 }, e: { r: 7, c: 9 } }, // Keterangan
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 30 }, // Jabatan Pengawas Ketenagakerjaan
+    { wch: 14 }, // Jumlah
+    { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, // Kegiatan Pemeriksaan
+    { wch: 10 }, { wch: 10 }, // Kegiatan Pembinaan
+    { wch: 24 }, // Keterangan
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K5')
+
+  const fileName = `K5_${wilayahName}_${periodeFile}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

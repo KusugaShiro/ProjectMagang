@@ -726,3 +726,103 @@ export async function exportK6ToExcel({ config, meta, rowsData, summaryTotals })
   const fileName = `K6_${wilayahName}_${periodeFile}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+export async function exportK7ToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
+
+  const XLSX = await import('xlsx')
+
+  const isTriwulan = jenisPeriode === 'triwulan'
+  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
+  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const staticKet = 'Penerbitan Perijinan K3 Bukan termasuk dalam wewenang dari UPTD'
+
+  const wsData = [
+    ['DATA PENERBITAN PERIZINAN K3'],
+    [periodeLine],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K7'}`],
+    [], // Baris kosong
+    // Baris 1 Header (14 kolom total)
+    [
+      'No',
+      'Sektor/KLUI',
+      'Jumlah Penerbitan Izin K3', '', '', '', '', '', '', '', '', '', '',
+      'Ket',
+    ],
+    // Baris 2 Header (14 kolom total)
+    [
+      '',
+      '',
+      'Pes. Uap',
+      'Bejana Tekan',
+      'PAA',
+      'PTP',
+      'Listrik',
+      'Petir',
+      'KB',
+      'Klinik Persh./Pely.Kes.K',
+      'Pengdl. Pestisida',
+      'Catering Makanan TK',
+      'Lain-lain',
+      '',
+    ],
+  ]
+
+  // 9 baris data
+  config.rows.forEach((rowDef, idx) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    const rowItem = [
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      idx === 0 ? staticKet : '',
+    ]
+    wsData.push(rowItem)
+  })
+
+  // Baris JUMLAH Total (11 kolom angka dijumlah, kolom Ket berisi "-")
+  const colTotals = summaryTotals.colTotals || {}
+  const totalRow = [
+    '',
+    'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ]
+  wsData.push(totalRow)
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk 2 baris header dan kolom Ket (baris indeks 6 & 7 untuk header, baris 8 s.d. 16 untuk data Ket)
+  ws['!merges'] = [
+    { s: { r: 6, c: 0 }, e: { r: 7, c: 0 } },   // No
+    { s: { r: 6, c: 1 }, e: { r: 7, c: 1 } },   // Sektor/KLUI
+    { s: { r: 6, c: 2 }, e: { r: 6, c: 12 } },  // Jumlah Penerbitan Izin K3 (11 kolom)
+    { s: { r: 6, c: 13 }, e: { r: 7, c: 13 } }, // Ket Header
+    { s: { r: 8, c: 13 }, e: { r: 16, c: 13 } }, // Ket Data 9 baris menyatu
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 12 }, // Sektor/KLUI
+    { wch: 10 }, // Pes. Uap
+    { wch: 12 }, // Bejana Tekan
+    { wch: 8 },  // PAA
+    { wch: 8 },  // PTP
+    { wch: 8 },  // Listrik
+    { wch: 8 },  // Petir
+    { wch: 8 },  // KB
+    { wch: 22 }, // Klinik Persh./Pely.Kes.K
+    { wch: 16 }, // Pengdl. Pestisida
+    { wch: 20 }, // Catering Makanan TK
+    { wch: 10 }, // Lain-lain
+    { wch: 45 }, // Ket
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K7')
+
+  const fileName = `K7_${wilayahName}_${periodeFile}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

@@ -21,7 +21,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -116,7 +116,7 @@ function isAutoField(fieldKey) {
   return Boolean(
     isTriwulanMode.value &&
     activeLaporan.value?.jenis_periode === 'triwulan' &&
-    props.config.triwulanConfig?.autoSumFields?.includes(fieldKey)
+    (props.config.triwulanConfig?.allLocked || props.config.triwulanConfig?.autoSumFields?.includes(fieldKey))
   )
 }
 
@@ -135,6 +135,9 @@ function initEmptyRows() {
       }
       if (props.config.textField) {
         rowItem[props.config.textField.key] = ''
+      }
+      if (props.config.staticCell) {
+        rowItem[props.config.staticCell.key || 'keterangan'] = props.config.staticCell.text
       }
       props.config.numericFields.forEach(sf => {
         rowItem[sf.key] = 0
@@ -319,6 +322,9 @@ async function bukaFormIsian() {
               const tk = props.config.textField.key
               const rawText = sourceItem[tk] ?? (props.config.textField.apiKey ? sourceItem[props.config.textField.apiKey] : undefined)
               mapped[tk] = rawText ?? ''
+            } else if (props.config.staticCell) {
+              const tk = props.config.staticCell.key || 'keterangan'
+              mapped[tk] = props.config.staticCell.text
             }
             rowsData[rKey] = mapped
           }
@@ -483,6 +489,10 @@ async function simpan() {
           const tk = props.config.textField.key
           const apiTk = props.config.textField.apiKey || tk
           payloadItem[apiTk] = rowVal[tk] || null
+        } else if (props.config.staticCell) {
+          const tk = props.config.staticCell.key || 'keterangan'
+          const apiTk = props.config.staticCell.apiKey || tk
+          payloadItem[apiTk] = props.config.staticCell.text
         }
         props.config.numericFields.forEach(sf => {
           payloadItem[sf.apiKey || sf.key] = Number(rowVal[sf.key]) || 0
@@ -606,7 +616,24 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K6') {
+    if (props.config.kode === 'K7') {
+      await exportK7ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K7',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K6') {
       await exportK6ToExcel({
         config: props.config,
         meta: {
@@ -975,7 +1002,10 @@ onMounted(() => {
         <svg class="w-5 h-5 shrink-0 text-slate-700 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <span>
+        <span v-if="config.triwulanConfig.allLocked">
+          Triwulan dihitung otomatis dari laporan bulanan, jadi semua kolom tidak bisa diedit. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
+        </span>
+        <span v-else>
           Triwulan dihitung otomatis dari laporan bulanan, jadi kolom kegiatan tidak bisa diedit. Kolom Jumlah dan Keterangan tetap bisa diisi. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
         </span>
       </div>
@@ -1457,7 +1487,7 @@ onMounted(() => {
 
           <tbody class="divide-y divide-slate-300 text-black">
             <tr
-              v-for="row in config.rows"
+              v-for="(row, rIdx) in config.rows"
               :key="getRowId(row)"
               class="hover:bg-slate-100/60 transition font-bold"
             >
@@ -1501,7 +1531,7 @@ onMounted(() => {
                   ]"
                 />
               </td>
-              <!-- Kolom Teks (Ket / Keterangan) -->
+              <!-- Kolom Teks (Ket / Keterangan) jika textField biasa -->
               <td v-if="config.textField" class="p-1">
                 <input
                   type="text"
@@ -1511,6 +1541,17 @@ onMounted(() => {
                   :placeholder="config.textField.placeholder || 'Keterangan...'"
                   class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-slate-700 text-xs disabled:bg-slate-100 disabled:text-black"
                 />
+              </td>
+              <!-- Kolom Teks Statis Bersatu (rowspan) jika staticCell -->
+              <td
+                v-else-if="config.staticCell && rIdx === 0"
+                :rowspan="config.staticCell.rowspan || config.rows.length"
+                :class="[
+                  'p-3 text-center align-middle font-bold text-xs bg-white border-l-2 border-slate-300 text-black',
+                  config.staticCell.width || 'w-64 min-w-[240px]'
+                ]"
+              >
+                {{ config.staticCell.text }}
               </td>
             </tr>
 
@@ -1534,7 +1575,7 @@ onMounted(() => {
               >
                 {{ summaryTotals.colTotals?.[f.key] ?? 0 }}
               </td>
-              <td v-if="config.textField" class="p-2.5 text-center text-white font-black bg-slate-800">
+              <td v-if="config.textField || config.staticCell" class="p-2.5 text-center text-white font-black bg-slate-800">
                 -
               </td>
             </tr>

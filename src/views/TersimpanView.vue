@@ -12,6 +12,7 @@ import {
   hapusTandaTangan,
 } from '../lib/api'
 import { exportRekapK1K10ToExcel } from '../lib/excelRekap'
+import { formList } from '../forms'
 import {
   currentUser,
   isOperator,
@@ -155,6 +156,18 @@ function bukaLaporan(item, targetModul) {
       tahun: item.tahun,
     },
   })
+}
+
+function getNamaModul(kode) {
+  const found = formList.find(f => f.kode.toUpperCase() === String(kode).toUpperCase())
+  return found ? `${found.kode} — ${found.nama}` : kode
+}
+
+function pilihDanBuka(item, event) {
+  const modul = event.target.value
+  if (!modul) return
+  event.target.value = ''
+  bukaLaporan(item, modul)
 }
 
 function mintaKonfirmasiHapus(item) {
@@ -421,7 +434,7 @@ onMounted(() => {
               <th class="p-3 font-black text-center">Tahun</th>
               <th class="p-3 font-black text-center">Status</th>
               <th class="p-3 font-black">Pembuat</th>
-              <th class="p-3 font-black text-center w-52">Aksi</th>
+              <th class="p-3 font-black text-center min-w-[280px]">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-300 text-black">
@@ -447,15 +460,13 @@ onMounted(() => {
 
               <!-- Formulir -->
               <td class="p-3 text-center">
-                <div class="flex items-center justify-center gap-1 flex-wrap">
-                  <span
-                    v-for="m in (item.modul_list?.length ? item.modul_list : [item.kode || 'K1'])"
-                    :key="m"
-                    class="px-2 py-0.5 rounded text-[11px] font-black bg-slate-200 text-slate-900 border border-slate-400"
-                  >
-                    {{ m }}
-                  </span>
-                </div>
+                <span
+                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-black bg-slate-200 text-slate-900 border border-slate-400 whitespace-nowrap"
+                  :title="(item.modul_list?.length ? item.modul_list : [item.kode || 'K1']).join(', ')"
+                >
+                  K1 – K10
+                  <span class="text-[10px] text-slate-600 font-bold">({{ item.modul_list?.length || 1 }})</span>
+                </span>
               </td>
 
               <!-- Periode -->
@@ -509,32 +520,28 @@ onMounted(() => {
               <!-- Aksi -->
               <td class="p-3 text-center">
                 <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                  <!-- Buka -->
-                  <template v-if="item.modul_list && item.modul_list.length > 1">
-                    <button
-                      v-for="m in item.modul_list"
-                      :key="m"
-                      @click="bukaLaporan(item, m)"
-                      class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs"
-                      :title="`Buka Form ${m}`"
-                    >
-                      Buka {{ m }}
-                    </button>
-                  </template>
-                  <button
-                    v-else
-                    @click="bukaLaporan(item, item.kode || 'k1')"
-                    class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs"
-                    :title="`Buka Form ${item.kode || 'K1'}`"
+                  <!-- Dropdown Buka Form (K1 s.d. K10) -->
+                  <select
+                    @change="pilihDanBuka(item, $event)"
+                    aria-label="Pilih formulir untuk dibuka"
+                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-900 shadow-xs focus:outline-none"
                   >
-                    Buka {{ item.kode ? item.kode : '' }}
-                  </button>
+                    <option value="" selected>Buka Form ▾</option>
+                    <option
+                      v-for="m in (item.modul_list?.length ? item.modul_list : [item.kode || 'K1'])"
+                      :key="m"
+                      :value="m"
+                      class="bg-white text-black font-bold"
+                    >
+                      {{ getNamaModul(m) }}
+                    </option>
+                  </select>
 
                   <!-- Download Excel Gabungan K1-K10 untuk bulan ini -->
                   <button
                     @click="downloadExcelBaris(item)"
                     :disabled="exportingRowId === item.id_laporan"
-                    class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-800 shadow-xs inline-flex items-center gap-1 disabled:opacity-50"
+                    class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-800 shadow-xs inline-flex items-center gap-1 disabled:opacity-50"
                     :title="`Download 1 file Excel berisi semua sheet K1–K10 untuk ${bulanNames[item.bulan]} ${item.tahun}`"
                   >
                     <svg v-if="exportingRowId === item.id_laporan" class="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
@@ -544,7 +551,7 @@ onMounted(() => {
                     <svg v-else class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
-                    <span>Excel K1–K10</span>
+                    <span>Excel</span>
                   </button>
 
                   <!-- Kirim (Jika Draf - Putih border abu-abu) -->

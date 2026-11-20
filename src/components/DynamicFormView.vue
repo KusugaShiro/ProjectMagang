@@ -21,7 +21,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel, exportK8bToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -620,7 +620,24 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K8a') {
+    if (props.config.kode === 'K8b') {
+      await exportK8bToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K8b',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K8a') {
       await exportK8aToExcel({
         config: props.config,
         meta: {

@@ -1225,3 +1225,113 @@ export async function exportK9aToExcel({ config, meta, rowsData, summaryTotals }
   const fileName = `K9a_${wilayahName}_${periodeFile}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+
+export async function exportK9bToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
+
+  const XLSX = await import('xlsx')
+
+  const isTriwulan = jenisPeriode === 'triwulan'
+  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
+  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+
+  // Kolom: No, Sektor/KLUI, 14 kolom angka, Ket = 17 kolom total (c0..c16)
+  const wsData = [
+    ['DATA PELANGGARAN NORMA K3'],
+    [periodeLine],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K9b'}`],
+    [], // Baris kosong
+    // Header Baris 1 (r6, 17 kolom)
+    [
+      'No', 'Sektor/KLUI',
+      'Jenis Pelanggaran Norma K3', '', '', '', '', '', '', '', '', '', '', '', '', '',
+      'Ket',
+    ],
+    // Header Baris 2 (r7, 17 kolom)
+    [
+      '', '',
+      'P2K3', 'Ahli K3', 'PJK3', 'Klinik Persh./Pely. Kes. K',
+      'Katering Pengelola Makanan', 'Pengl. Pestisida', 'Operator/Teknisi/Petugas',
+      'Dokter Persh', 'Paramedis Perusahaan', 'Dokter PKTK',
+      'Pemeriksaan Kesehatan K3', '', '',
+      'Lain-lain',
+      '',
+    ],
+    // Header Baris 3 (r8, 17 kolom)
+    [
+      '', '', '', '', '', '', '', '', '', '', '', '',
+      'Awal', 'Berkala', 'Khusus',
+      '', '',
+    ],
+  ]
+
+  // 10 baris data (sektor 1-9, lalu 0)
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    wsData.push([
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || '',
+    ])
+  })
+
+  // Baris JUMLAH (tanpa daftar keterangan di bawahnya)
+  const colTotals = summaryTotals.colTotals || {}
+  wsData.push([
+    '', 'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk header 3 baris (r6, r7, r8)
+  ws['!merges'] = [
+    { s: { r: 6, c: 0 }, e: { r: 8, c: 0 } },   // No
+    { s: { r: 6, c: 1 }, e: { r: 8, c: 1 } },   // Sektor/KLUI
+    { s: { r: 6, c: 2 }, e: { r: 6, c: 15 } },  // Jenis Pelanggaran Norma K3 (14 kolom)
+    { s: { r: 6, c: 16 }, e: { r: 8, c: 16 } }, // Ket
+    { s: { r: 7, c: 2 }, e: { r: 8, c: 2 } },   // P2K3
+    { s: { r: 7, c: 3 }, e: { r: 8, c: 3 } },   // Ahli K3
+    { s: { r: 7, c: 4 }, e: { r: 8, c: 4 } },   // PJK3
+    { s: { r: 7, c: 5 }, e: { r: 8, c: 5 } },   // Klinik Persh./Pely. Kes. K
+    { s: { r: 7, c: 6 }, e: { r: 8, c: 6 } },   // Katering Pengelola Makanan
+    { s: { r: 7, c: 7 }, e: { r: 8, c: 7 } },   // Pengl. Pestisida
+    { s: { r: 7, c: 8 }, e: { r: 8, c: 8 } },   // Operator/Teknisi/Petugas
+    { s: { r: 7, c: 9 }, e: { r: 8, c: 9 } },   // Dokter Persh
+    { s: { r: 7, c: 10 }, e: { r: 8, c: 10 } }, // Paramedis Perusahaan
+    { s: { r: 7, c: 11 }, e: { r: 8, c: 11 } }, // Dokter PKTK
+    { s: { r: 7, c: 12 }, e: { r: 7, c: 14 } }, // Pemeriksaan Kesehatan K3 (Awal, Berkala, Khusus)
+    { s: { r: 7, c: 15 }, e: { r: 8, c: 15 } }, // Lain-lain
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 12 }, // Sektor/KLUI
+    { wch: 8 },  // P2K3
+    { wch: 9 },  // Ahli K3
+    { wch: 8 },  // PJK3
+    { wch: 24 }, // Klinik Persh./Pely. Kes. K
+    { wch: 24 }, // Katering Pengelola Makanan
+    { wch: 16 }, // Pengl. Pestisida
+    { wch: 24 }, // Operator/Teknisi/Petugas
+    { wch: 14 }, // Dokter Persh
+    { wch: 20 }, // Paramedis Perusahaan
+    { wch: 14 }, // Dokter PKTK
+    { wch: 8 },  // Awal
+    { wch: 10 }, // Berkala
+    { wch: 10 }, // Khusus
+    { wch: 10 }, // Lain-lain
+    { wch: 24 }, // Ket
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K9b')
+
+  const fileName = `K9b_${wilayahName}_${periodeFile}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

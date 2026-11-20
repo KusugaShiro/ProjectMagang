@@ -254,7 +254,7 @@ export async function apiGetDaftarLaporan(params = {}) {
   // Tambahkan referensi modul K1 s.d. K7 yang aktif agar tombol aksi pada antarmuka dapat dibuka
   return list.map(item => ({
     ...item,
-    modul_list: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8a', 'K8b', 'K8c', 'K9a'],
+    modul_list: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8a', 'K8b', 'K8c', 'K9a', 'K9b'],
   }))
 }
 

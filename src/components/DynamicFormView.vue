@@ -21,7 +21,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -116,7 +116,11 @@ function isAutoField(fieldKey) {
   return Boolean(
     isTriwulanMode.value &&
     activeLaporan.value?.jenis_periode === 'triwulan' &&
-    (props.config.triwulanConfig?.allLocked || props.config.triwulanConfig?.autoSumFields?.includes(fieldKey))
+    (
+      props.config.triwulanConfig?.allLocked ||
+      props.config.triwulanConfig?.allNumericLocked ||
+      props.config.triwulanConfig?.autoSumFields?.includes(fieldKey)
+    )
   )
 }
 
@@ -616,7 +620,24 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K7') {
+    if (props.config.kode === 'K8a') {
+      await exportK8aToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K8a',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+      })
+    } else if (props.config.kode === 'K7') {
       await exportK7ToExcel({
         config: props.config,
         meta: {
@@ -1004,6 +1025,9 @@ onMounted(() => {
         </svg>
         <span v-if="config.triwulanConfig.allLocked">
           Triwulan dihitung otomatis dari laporan bulanan, jadi semua kolom tidak bisa diedit. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
+        </span>
+        <span v-else-if="config.triwulanConfig.infoText">
+          {{ config.triwulanConfig.infoText }} Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
         </span>
         <span v-else>
           Triwulan dihitung otomatis dari laporan bulanan, jadi kolom kegiatan tidak bisa diedit. Kolom Jumlah dan Keterangan tetap bisa diisi. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
@@ -1664,7 +1688,7 @@ onMounted(() => {
         <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        {{ config.columnDescriptions ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:' }}
+        {{ config.columnDescriptionTitle || (config.columnDescriptions ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:') }}
       </h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
         <div

@@ -826,3 +826,99 @@ export async function exportK7ToExcel({ config, meta, rowsData, summaryTotals })
   const fileName = `K7_${wilayahName}_${periodeFile}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+
+export async function exportK8aToExcel({ config, meta, rowsData, summaryTotals }) {
+  const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
+
+  const XLSX = await import('xlsx')
+
+  const isTriwulan = jenisPeriode === 'triwulan'
+  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
+  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+
+  // Kolom: No, Sektor/KLUI, Jml.Kecl., Jml.Korban, Keracunan, PAK, A-J (10), Ket = 16 kolom total
+  const wsData = [
+    ['DATA KECELAKAAN KERJA DAN PENYAKIT AKIBAT KERJA'],
+    [periodeLine],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K8a'}`],
+    [], // Baris kosong
+    // Header Baris 1
+    [
+      'No', 'Sektor/KLUI', 'Jml. Kecl.', 'Jml. Korban', 'Keracunan', 'PAK',
+      'Tipe Kecelakaan Kerja', '', '', '', '', '', '', '', '', '',
+      'Ket',
+    ],
+    // Header Baris 2
+    [
+      '', '', '', '', '', '',
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+      '',
+    ],
+  ]
+
+  // 9 baris data
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    wsData.push([
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || '',
+    ])
+  })
+
+  // Baris JUMLAH
+  const colTotals = summaryTotals.colTotals || {}
+  wsData.push([
+    '', 'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ])
+
+  // Baris kosong + judul keterangan
+  wsData.push([])
+  wsData.push(['Keterangan :'])
+
+  // Daftar keterangan A s.d. J
+  if (config.columnDescriptions && config.columnDescriptions.length > 0) {
+    config.columnDescriptions.forEach(desc => {
+      wsData.push([desc.label, '=', desc.text])
+    })
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk header 2 baris
+  ws['!merges'] = [
+    { s: { r: 6, c: 0 }, e: { r: 7, c: 0 } },   // No
+    { s: { r: 6, c: 1 }, e: { r: 7, c: 1 } },   // Sektor/KLUI
+    { s: { r: 6, c: 2 }, e: { r: 7, c: 2 } },   // Jml. Kecl.
+    { s: { r: 6, c: 3 }, e: { r: 7, c: 3 } },   // Jml. Korban
+    { s: { r: 6, c: 4 }, e: { r: 7, c: 4 } },   // Keracunan
+    { s: { r: 6, c: 5 }, e: { r: 7, c: 5 } },   // PAK
+    { s: { r: 6, c: 6 }, e: { r: 6, c: 15 } },  // Tipe Kecelakaan Kerja (10 kolom A-J)
+    { s: { r: 6, c: 16 }, e: { r: 7, c: 16 } }, // Ket
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 12 }, // Sektor/KLUI
+    { wch: 11 }, // Jml. Kecl.
+    { wch: 11 }, // Jml. Korban
+    { wch: 10 }, // Keracunan
+    { wch: 8 },  // PAK
+    // A-J: 10 kolom
+    { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 },
+    { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 }, { wch: 6 },
+    { wch: 24 }, // Ket
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K8a')
+
+  const fileName = `K8a_${wilayahName}_${periodeFile}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

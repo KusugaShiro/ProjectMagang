@@ -32,7 +32,7 @@ const exportingRowId = ref(null)
 const eksporFilter = reactive({
   id_wilayah: 1,
   tahun: new Date().getFullYear(),
-  periode: 'tahunan', // 'tahunan' atau angka bulan '1'..'12'
+  bulan: 1,
 })
 
 // Daftar tahun tersedia dari arsip laporan + tahun default
@@ -79,6 +79,7 @@ async function muatDaftar() {
     }
     if (daftarRes.length > 0 && !daftarRes.some(d => Number(d.tahun) === Number(eksporFilter.tahun))) {
       eksporFilter.tahun = Number(daftarRes[0].tahun)
+      eksporFilter.bulan = Number(daftarRes[0].bulan) || 1
     }
   } catch (err) {
     errorMessage.value = 'Gagal memuat arsip laporan: ' + (err.message || err)
@@ -93,24 +94,19 @@ async function downloadExcelRekap() {
   feedbackMessage.value = ''
   try {
     const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(eksporFilter.id_wilayah)) || null
-    const isTahunan = eksporFilter.periode === 'tahunan'
-    const bulanVal = isTahunan ? null : Number(eksporFilter.periode)
+    const bulanVal = Number(eksporFilter.bulan)
 
     const result = await exportRekapK1K10ToExcel({
       id_wilayah: Number(eksporFilter.id_wilayah),
       wilayahObj: wilObj,
       tahun: Number(eksporFilter.tahun),
-      jenisPeriode: isTahunan ? 'tahunan' : 'bulanan',
+      jenisPeriode: 'bulanan',
       bulan: bulanVal,
     })
 
-    const infoBulan = isTahunan
-      ? (result.bulanTerpakai.length > 0
-          ? `data dari ${result.bulanTerpakai.length} bulan (${result.bulanTerpakai.join(', ')})`
-          : 'belum ada laporan bulanan tersimpan di tahun ini, seluruh sel diisi 0')
-      : (result.bulanTerpakai.length > 0
-          ? `data bulan ${bulanNames[bulanVal]}`
-          : `belum ada laporan tersimpan untuk ${bulanNames[bulanVal]}, seluruh sel diisi 0`)
+    const infoBulan = result.bulanTerpakai.length > 0
+      ? `data bulan ${bulanNames[bulanVal]}`
+      : `belum ada laporan tersimpan untuk ${bulanNames[bulanVal]}, seluruh sel diisi 0`
 
     feedbackMessage.value = `Berhasil mengunduh ${result.fileName} (${result.sheetNames.length} sheet K1–K10; ${infoBulan}).`
     setTimeout(() => {
@@ -350,16 +346,15 @@ onMounted(() => {
           </select>
         </div>
 
-        <!-- Periode: Tahunan atau per Bulan -->
+        <!-- Bulan -->
         <div>
-          <label class="block text-xs font-black text-black mb-1">Periode</label>
+          <label class="block text-xs font-black text-black mb-1">Bulan</label>
           <select
-            v-model="eksporFilter.periode"
+            v-model.number="eksporFilter.bulan"
             class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700"
           >
-            <option value="tahunan">Tahunan (Januari – Desember)</option>
-            <option v-for="b in 12" :key="b" :value="String(b)">
-              Bulan {{ bulanNames[b] }} (K1–K10)
+            <option v-for="b in 12" :key="b" :value="b">
+              {{ bulanNames[b] }} (K1–K10)
             </option>
           </select>
         </div>
@@ -378,14 +373,10 @@ onMounted(() => {
             <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
-            <span>{{ isExporting ? 'Menyiapkan Excel...' : (eksporFilter.periode === 'tahunan' ? 'Download Excel Tahunan' : `Download Excel ${bulanNames[Number(eksporFilter.periode)]}`) }}</span>
+            <span>{{ isExporting ? 'Menyiapkan Excel...' : `Download Excel ${bulanNames[eksporFilter.bulan]}` }}</span>
           </button>
         </div>
       </div>
-
-      <p class="text-[11px] text-slate-600 font-bold">
-        Mode Tahunan memakai posisi bulan terakhir yang tersimpan untuk K1–K4 (snapshot) dan jumlah akumulasi seluruh bulan tersimpan untuk K5–K10.
-      </p>
     </section>
 
     <!-- Tabel Dokumen Laporan Bulanan (Putih) -->

@@ -7,27 +7,51 @@
 
 import { apiUnduhExcelResmi } from './api'
 
-export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals }) {
-  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+function finalizeSheet(XLSX, ws, sheetName, fileName, targetWorkbook = null) {
+  if (targetWorkbook) {
+    XLSX.utils.book_append_sheet(targetWorkbook, ws, sheetName)
+    return ws
+  }
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  XLSX.writeFile(wb, fileName)
+  return ws
+}
 
-  // 1. Coba download dari backend resmi jika tersedia
-  try {
-    const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
-    if (successBackend) {
-      return
+function getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi }) {
+  if (jenisPeriode === 'tahunan') {
+    return { periodeLine: 'Periode : Tahunan (Januari - Desember)', periodeFile: 'Tahunan' }
+  }
+  if (jenisPeriode === 'triwulan') {
+    return { periodeLine: `Triwulan : ${triwulanRomawi}`, periodeFile: `Triwulan_${triwulanRomawi}` }
+  }
+  return { periodeLine: `Bulan : ${bulan}`, periodeFile: bulan }
+}
+
+export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
+  const { id_wilayah, wilayahName, jenisPeriode, bulan, triwulan, tahun, kode, wilayahObj } = meta
+
+  // 1. Coba download dari backend resmi jika tersedia (hanya untuk ekspor tunggal)
+  if (!targetWorkbook) {
+    try {
+      const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
+      if (successBackend) {
+        return
+      }
+    } catch (e) {
+      console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
     }
-  } catch (e) {
-    console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
   }
 
   // 2. Fallback: Buat Excel K1 via SheetJS
   const XLSX = await import('xlsx')
+  const isTahunan = jenisPeriode === 'tahunan'
 
   const wsData = [
     // Judul & Metadata Resmi
     ['DATA PEGAWAI PENGAWAS KETENAGAKERJAAN'],
-    [`Bulan : ${bulan}`],
-    [`Triwulan : TW ${triwulan}`],
+    [isTahunan ? 'Periode : Tahunan (Januari - Desember)' : `Bulan : ${bulan}`],
+    [isTahunan ? 'Triwulan : TW I - IV' : `Triwulan : TW ${triwulan}`],
     [`Tahun : ${tahun}`],
     [`Kabupaten/Wilayah : ${wilayahName}`],
     [`Kode : ${kode || 'K1'}`],
@@ -128,33 +152,33 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 24 }  // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K1')
-
   const fileName = `K1_${wilayahName}_${bulan}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K1', fileName, targetWorkbook)
 }
 
-export async function exportK2ToExcel({ config, meta, rowsData, summaryTotals }) {
-  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+export async function exportK2ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
+  const { id_wilayah, wilayahName, jenisPeriode, bulan, triwulan, tahun, kode, wilayahObj } = meta
 
-  // 1. Coba download dari backend resmi jika tersedia
-  try {
-    const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
-    if (successBackend) {
-      return
+  // 1. Coba download dari backend resmi jika tersedia (hanya untuk ekspor tunggal)
+  if (!targetWorkbook) {
+    try {
+      const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
+      if (successBackend) {
+        return
+      }
+    } catch (e) {
+      console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
     }
-  } catch (e) {
-    console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
   }
 
   // 2. Fallback: Buat Excel K2 via SheetJS
   const XLSX = await import('xlsx')
+  const isTahunan = jenisPeriode === 'tahunan'
 
   const wsData = [
     ['DATA OBYEK PENGAWASAN'],
-    [`Bulan : ${bulan}`],
-    [`Triwulan : TW ${triwulan}`],
+    [isTahunan ? 'Periode : Tahunan (Januari - Desember)' : `Bulan : ${bulan}`],
+    [isTahunan ? 'Triwulan : TW I - IV' : `Triwulan : TW ${triwulan}`],
     [`Tahun : ${tahun}`],
     [`Kabupaten/Wilayah : ${wilayahName}`],
     [`Kode : ${kode || 'K2'}`],
@@ -260,33 +284,33 @@ export async function exportK2ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 28 }, // Penghargaan K3
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K2')
-
   const fileName = `K2_${wilayahName}_${bulan}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K2', fileName, targetWorkbook)
 }
 
-export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals }) {
-  const { id_wilayah, wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
+  const { id_wilayah, wilayahName, jenisPeriode, bulan, triwulan, tahun, kode, wilayahObj } = meta
 
-  // 1. Coba download dari backend resmi jika tersedia
-  try {
-    const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
-    if (successBackend) {
-      return
+  // 1. Coba download dari backend resmi jika tersedia (hanya untuk ekspor tunggal)
+  if (!targetWorkbook) {
+    try {
+      const successBackend = await apiUnduhExcelResmi(id_wilayah, tahun, triwulan)
+      if (successBackend) {
+        return
+      }
+    } catch (e) {
+      console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
     }
-  } catch (e) {
-    console.warn('Backend download tidak tersedia, membuat Excel via SheetJS lokal...')
   }
 
   // 2. Fallback: Buat Excel K3 via SheetJS
   const XLSX = await import('xlsx')
+  const isTahunan = jenisPeriode === 'tahunan'
 
   const wsData = [
     ['OBYEK PENGAWASAN K3'],
-    [`Bulan : ${bulan}`],
-    [`Triwulan : TW ${triwulan}`],
+    [isTahunan ? 'Periode : Tahunan (Januari - Desember)' : `Bulan : ${bulan}`],
+    [isTahunan ? 'Triwulan : TW I - IV' : `Triwulan : TW ${triwulan}`],
     [`Tahun : ${tahun}`],
     [`Kabupaten/Wilayah : ${wilayahName}`],
     [`Kode : ${kode || 'K3'}`],
@@ -383,22 +407,20 @@ export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 24 }, // Ket.
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K3')
-
   const fileName = `K3_${wilayahName}_${bulan}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K3', fileName, targetWorkbook)
 }
 
-export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals }) {
-  const { wilayahName, bulan, triwulan, tahun, kode, wilayahObj } = meta
+export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
+  const { wilayahName, jenisPeriode, bulan, triwulan, tahun, kode, wilayahObj } = meta
 
   const XLSX = await import('xlsx')
+  const isTahunan = jenisPeriode === 'tahunan'
 
   const wsData = [
     ['DATA JAMSOSTEK - BPJS'],
-    [`Bulan : ${bulan}`],
-    [`Triwulan : TW ${triwulan}`],
+    [isTahunan ? 'Periode : Tahunan (Januari - Desember)' : `Bulan : ${bulan}`],
+    [isTahunan ? 'Triwulan : TW I - IV' : `Triwulan : TW ${triwulan}`],
     [`Tahun : ${tahun}`],
     [`Kabupaten/Wilayah : ${wilayahName}`],
     [`Kode : ${kode || 'K4'}`],
@@ -503,21 +525,16 @@ export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K4')
-
   const fileName = `K4_${wilayahName}_${bulan}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K4', fileName, targetWorkbook)
 }
 
-export async function exportK5ToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK5ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode, wilayahObj } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   const wsData = [
     ['KEGIATAN PEMERIKSAAN KETENAGAKERJAAN'],
@@ -618,21 +635,16 @@ export async function exportK5ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 24 }, // Keterangan
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K5')
-
   const fileName = `K5_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K5', fileName, targetWorkbook)
 }
 
-export async function exportK6ToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK6ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
   const nums1to9 = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
   const wsData = [
@@ -720,21 +732,16 @@ export async function exportK6ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 22 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K6')
-
   const fileName = `K6_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K6', fileName, targetWorkbook)
 }
 
-export async function exportK7ToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK7ToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
   const staticKet = 'Penerbitan Perijinan K3 Bukan termasuk dalam wewenang dari UPTD'
 
   const wsData = [
@@ -820,22 +827,17 @@ export async function exportK7ToExcel({ config, meta, rowsData, summaryTotals })
     { wch: 45 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K7')
-
   const fileName = `K7_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K7', fileName, targetWorkbook)
 }
 
 
-export async function exportK8aToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK8aToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No, Sektor/KLUI, Jml.Kecl., Jml.Korban, Keracunan, PAK, A-J (10), Ket = 16 kolom total
   const wsData = [
@@ -916,22 +918,17 @@ export async function exportK8aToExcel({ config, meta, rowsData, summaryTotals }
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K8a')
-
   const fileName = `K8a_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K8a', fileName, targetWorkbook)
 }
 
 
-export async function exportK8bToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK8bToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No, Sektor/KLUI, A-R (18 kolom), Ket = 21 kolom total
   const wsData = [
@@ -1005,22 +1002,17 @@ export async function exportK8bToExcel({ config, meta, rowsData, summaryTotals }
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K8b')
-
   const fileName = `K8b_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K8b', fileName, targetWorkbook)
 }
 
 
-export async function exportK8cToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK8cToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No, Sektor/KLUI, KK, PAK, Sembuh, STMB, Cacat, MD, Berkala, Sekaligus, Kerg Matrl, Hr Hlg, Lain2, Ket = 14 kolom total
   const wsData = [
@@ -1110,22 +1102,17 @@ export async function exportK8cToExcel({ config, meta, rowsData, summaryTotals }
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K8c')
-
   const fileName = `K8c_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K8c', fileName, targetWorkbook)
 }
 
 
-export async function exportK9aToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK9aToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No, Sektor/KLUI, Jml Prsh Melanggar, Jml Perush Di Nota, 17 sub-kolom, Ket = 22 kolom total
   const wsData = [
@@ -1219,22 +1206,17 @@ export async function exportK9aToExcel({ config, meta, rowsData, summaryTotals }
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K9a')
-
   const fileName = `K9a_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K9a', fileName, targetWorkbook)
 }
 
 
-export async function exportK9bToExcel({ config, meta, rowsData, summaryTotals }) {
+export async function exportK9bToExcel({ config, meta, rowsData, summaryTotals, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No, Sektor/KLUI, 14 kolom angka, Ket = 17 kolom total (c0..c16)
   const wsData = [
@@ -1329,22 +1311,17 @@ export async function exportK9bToExcel({ config, meta, rowsData, summaryTotals }
     { wch: 24 }, // Ket
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K9b')
-
   const fileName = `K9b_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K9b', fileName, targetWorkbook)
 }
 
 
-export async function exportK10ToExcel({ config, meta, rowsData, summaryTotals, signatureData }) {
+export async function exportK10ToExcel({ config, meta, rowsData, summaryTotals, signatureData, targetWorkbook = null }) {
   const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
 
   const XLSX = await import('xlsx')
 
-  const isTriwulan = jenisPeriode === 'triwulan'
-  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
-  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+  const { periodeLine, periodeFile } = getPeriodeHeader({ jenisPeriode, bulan, triwulanRomawi })
 
   // Kolom: No (c0), Sektor/KLUI (c1), Jml. Persh. Melanggar (c2), Jml. Persh. Diajukan BAP (c3),
   // Penghentian Penyidikan (c4), Denda (c5), Kurung (c6), Keterangan (c7) = 8 kolom total
@@ -1433,9 +1410,6 @@ export async function exportK10ToExcel({ config, meta, rowsData, summaryTotals, 
     { wch: 26 }, // Keterangan
   ]
 
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'K10')
-
   const fileName = `K10_${wilayahName}_${periodeFile}_${tahun}.xlsx`
-  XLSX.writeFile(wb, fileName)
+  return finalizeSheet(XLSX, ws, 'K10', fileName, targetWorkbook)
 }

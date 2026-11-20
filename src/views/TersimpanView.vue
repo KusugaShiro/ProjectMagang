@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
+  apiGetMasterWilayah,
   apiGetDaftarLaporan,
   apiHapusLaporan,
   apiKirimLaporan,
@@ -10,6 +11,7 @@ import {
   apiGetLaporanLog,
   hapusTandaTangan,
 } from '../lib/api'
+import { exportRekapK1K10ToExcel } from '../lib/excelRekap'
 import {
   currentUser,
   isOperator,
@@ -19,9 +21,28 @@ import {
 
 const router = useRouter()
 const items = ref([])
+const daftarWilayah = ref([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 const feedbackMessage = ref('')
+
+// State Ekspor Excel Gabungan (K1 s.d. K10 dalam 1 berkas)
+const isExporting = ref(false)
+const exportingRowId = ref(null)
+const eksporFilter = reactive({
+  id_wilayah: 1,
+  tahun: new Date().getFullYear(),
+  periode: 'tahunan', // 'tahunan' atau angka bulan '1'..'12'
+})
+
+// Daftar tahun tersedia dari arsip laporan + tahun default
+const tahunTersedia = computed(() => {
+  const set = new Set([new Date().getFullYear(), 2026])
+  items.value.forEach(it => {
+    if (it.tahun) set.add(Number(it.tahun))
+  })
+  return Array.from(set).sort((a, b) => b - a)
+})
 
 // State Modal Konfirmasi Hapus
 const isConfirmOpen = ref(false)
@@ -42,11 +63,89 @@ async function muatDaftar() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    items.value = await apiGetDaftarLaporan()
+    const [wilayahRes, daftarRes] = await Promise.all([
+      apiGetMasterWilayah(),
+      apiGetDaftarLaporan(),
+    ])
+    daftarWilayah.value = wilayahRes
+    items.value = daftarRes
+
+    if (daftarWilayah.value.length > 0) {
+      if (isOperator.value && currentUser.value?.id_wilayah) {
+        eksporFilter.id_wilayah = currentUser.value.id_wilayah
+      } else if (!daftarWilayah.value.some(w => w.id_wilayah === eksporFilter.id_wilayah)) {
+        eksporFilter.id_wilayah = daftarWilayah.value[0].id_wilayah
+      }
+    }
+    if (daftarRes.length > 0 && !daftarRes.some(d => Number(d.tahun) === Number(eksporFilter.tahun))) {
+      eksporFilter.tahun = Number(daftarRes[0].tahun)
+    }
   } catch (err) {
     errorMessage.value = 'Gagal memuat arsip laporan: ' + (err.message || err)
   } finally {
     isLoading.value = false
+  }
+}
+
+async function downloadExcelRekap() {
+  isExporting.value = true
+  errorMessage.value = ''
+  feedbackMessage.value = ''
+  try {
+    const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(eksporFilter.id_wilayah)) || null
+    const isTahunan = eksporFilter.periode === 'tahunan'
+    const bulanVal = isTahunan ? null : Number(eksporFilter.periode)
+
+    const result = await exportRekapK1K10ToExcel({
+      id_wilayah: Number(eksporFilter.id_wilayah),
+      wilayahObj: wilObj,
+      tahun: Number(eksporFilter.tahun),
+      jenisPeriode: isTahunan ? 'tahunan' : 'bulanan',
+      bulan: bulanVal,
+    })
+
+    const infoBulan = isTahunan
+      ? (result.bulanTerpakai.length > 0
+          ? `data dari ${result.bulanTerpakai.length} bulan (${result.bulanTerpakai.join(', ')})`
+          : 'belum ada laporan bulanan tersimpan di tahun ini, seluruh sel diisi 0')
+      : (result.bulanTerpakai.length > 0
+          ? `data bulan ${bulanNames[bulanVal]}`
+          : `belum ada laporan tersimpan untuk ${bulanNames[bulanVal]}, seluruh sel diisi 0`)
+
+    feedbackMessage.value = `Berhasil mengunduh ${result.fileName} (${result.sheetNames.length} sheet K1–K10; ${infoBulan}).`
+    setTimeout(() => {
+      if (feedbackMessage.value.startsWith('Berhasil mengunduh')) feedbackMessage.value = ''
+    }, 6000)
+  } catch (err) {
+    errorMessage.value = 'Gagal mengunduh Excel gabungan: ' + (err.message || err)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+async function downloadExcelBaris(item) {
+  exportingRowId.value = item.id_laporan
+  errorMessage.value = ''
+  feedbackMessage.value = ''
+  try {
+    const wilObj = item.wilayah || daftarWilayah.value.find(w => w.id_wilayah === Number(item.id_wilayah)) || null
+    const result = await exportRekapK1K10ToExcel({
+      id_wilayah: Number(item.id_wilayah),
+      wilayahObj: wilObj,
+      tahun: Number(item.tahun),
+      jenisPeriode: 'bulanan',
+      bulan: Number(item.bulan),
+      laporanDoc: item,
+    })
+
+    feedbackMessage.value = `Berhasil mengunduh ${result.fileName} (${result.sheetNames.length} sheet K1–K10 untuk ${bulanNames[item.bulan]} ${item.tahun}).`
+    setTimeout(() => {
+      if (feedbackMessage.value.startsWith('Berhasil mengunduh')) feedbackMessage.value = ''
+    }, 6000)
+  } catch (err) {
+    errorMessage.value = 'Gagal mengunduh Excel bulan ini: ' + (err.message || err)
+  } finally {
+    exportingRowId.value = null
   }
 }
 
@@ -207,6 +306,88 @@ onMounted(() => {
       <span class="font-bold text-black">{{ errorMessage }}</span>
     </div>
 
+    <!-- KARTU DOWNLOAD EXCEL GABUNGAN (K1 s.d. K10 DALAM 1 FILE) -->
+    <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm sm:text-base font-black text-black flex items-center gap-2">
+            <svg class="w-4 h-4 text-slate-900 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download Excel Gabungan (K1–K10)
+          </h2>
+          <p class="text-xs text-slate-700 font-bold mt-0.5">
+            1 file Excel langsung terbagi menjadi semua sheet K1 s.d. K10 (K1, K2, K3, K4, K5, K6, K7, K8a, K8b, K8c, K9a, K9b, K10).
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <!-- Wilayah -->
+        <div>
+          <label class="block text-xs font-black text-black mb-1">Wilayah Pengawasan</label>
+          <select
+            v-model.number="eksporFilter.id_wilayah"
+            :disabled="isOperator"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-200"
+          >
+            <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
+              {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
+            </option>
+          </select>
+        </div>
+
+        <!-- Tahun -->
+        <div>
+          <label class="block text-xs font-black text-black mb-1">Tahun</label>
+          <select
+            v-model.number="eksporFilter.tahun"
+            class="w-full bg-white border-2 border-slate-300 text-black font-mono font-black rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700"
+          >
+            <option v-for="th in tahunTersedia" :key="th" :value="th">
+              {{ th }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Periode: Tahunan atau per Bulan -->
+        <div>
+          <label class="block text-xs font-black text-black mb-1">Periode</label>
+          <select
+            v-model="eksporFilter.periode"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700"
+          >
+            <option value="tahunan">Tahunan (Januari – Desember)</option>
+            <option v-for="b in 12" :key="b" :value="String(b)">
+              Bulan {{ bulanNames[b] }} (K1–K10)
+            </option>
+          </select>
+        </div>
+
+        <!-- Tombol Download -->
+        <div>
+          <button
+            @click="downloadExcelRekap"
+            :disabled="isExporting || isLoading"
+            class="w-full px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <svg v-if="isExporting" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span>{{ isExporting ? 'Menyiapkan Excel...' : (eksporFilter.periode === 'tahunan' ? 'Download Excel Tahunan' : `Download Excel ${bulanNames[Number(eksporFilter.periode)]}`) }}</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-slate-600 font-bold">
+        Mode Tahunan memakai posisi bulan terakhir yang tersimpan untuk K1–K4 (snapshot) dan jumlah akumulasi seluruh bulan tersimpan untuk K5–K10.
+      </p>
+    </section>
+
     <!-- Tabel Dokumen Laporan Bulanan (Putih) -->
     <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs">
       <div v-if="isLoading" class="py-16 text-center text-black font-bold">
@@ -356,6 +537,23 @@ onMounted(() => {
                     :title="`Buka Form ${item.kode || 'K1'}`"
                   >
                     Buka {{ item.kode ? item.kode : '' }}
+                  </button>
+
+                  <!-- Download Excel Gabungan K1-K10 untuk bulan ini -->
+                  <button
+                    @click="downloadExcelBaris(item)"
+                    :disabled="exportingRowId === item.id_laporan"
+                    class="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-800 shadow-xs inline-flex items-center gap-1 disabled:opacity-50"
+                    :title="`Download 1 file Excel berisi semua sheet K1–K10 untuk ${bulanNames[item.bulan]} ${item.tahun}`"
+                  >
+                    <svg v-if="exportingRowId === item.id_laporan" class="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <svg v-else class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span>Excel K1–K10</span>
                   </button>
 
                   <!-- Kirim (Jika Draf - Putih border abu-abu) -->

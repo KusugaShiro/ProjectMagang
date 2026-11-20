@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formList } from '../forms'
+import logoDinas from '../assets/logodinas.jpeg'
 import {
   currentUser,
   SEED_ACCOUNTS,
@@ -81,12 +82,12 @@ const peranLabel = computed(() => {
         <!-- Header Sidebar -->
         <div class="p-5 border-b-2 border-slate-300 flex items-center justify-between bg-white">
           <div class="flex items-center gap-3">
-            <!-- Ikon Perisai SVG (Abu-abu Gelap & Putih) -->
-            <div class="w-10 h-10 rounded-xl bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-white font-black shadow-xs shrink-0">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.54-3.14 8.78-7 9.88-3.86-1.1-7-5.34-7-9.88V6.3l7-3.12z"/>
-              </svg>
-            </div>
+            <!-- Logo Dinas Binwasnaker -->
+            <img
+              :src="logoDinas"
+              alt="Logo Binwasnaker Wilayah I Banjarmasin"
+              class="w-11 h-11 rounded-xl bg-white border border-slate-300 object-contain p-0.5 shadow-xs shrink-0"
+            />
             <div>
               <h2 class="text-sm font-black text-black leading-tight tracking-wide">
                 Laporan Pengawasan

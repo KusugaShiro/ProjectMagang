@@ -8,6 +8,7 @@ import {
   apiSahkanLaporan,
   apiKembalikanLaporan,
   apiGetLaporanLog,
+  hapusTandaTangan,
 } from '../lib/api'
 import {
   currentUser,
@@ -83,6 +84,12 @@ async function prosesHapus() {
 
   try {
     await apiHapusLaporan(target.id_laporan)
+    hapusTandaTangan('k10', {
+      id_wilayah: target.id_wilayah,
+      tahun: target.tahun,
+      jenis_periode: 'bulanan',
+      bulan: target.bulan,
+    })
     feedbackMessage.value = `Laporan #${target.id_laporan} (${target.wilayah?.nama_kabupaten_kota} - ${bulanNames[target.bulan]} ${target.tahun}) berhasil dihapus.`
     setTimeout(() => {
       feedbackMessage.value = ''

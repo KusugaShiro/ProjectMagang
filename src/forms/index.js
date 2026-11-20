@@ -10,6 +10,7 @@ import { formK8b } from './k8b'
 import { formK8c } from './k8c'
 import { formK9a } from './k9a'
 import { formK9b } from './k9b'
+import { formK10 } from './k10'
 
 /**
  * Daftar Modul Matriks K1 s.d. K10
@@ -151,6 +152,7 @@ export const formConfigs = {
   K8C: formK8c,
   K9A: formK9a,
   K9B: formK9b,
+  K10: formK10,
 }
 
 export function getFormConfig(kode) {

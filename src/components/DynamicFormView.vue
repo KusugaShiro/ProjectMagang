@@ -14,6 +14,8 @@ import {
   ambilLaporan,
   ambilSimpananTriwulan,
   simpanTriwulan,
+  ambilTandaTangan,
+  simpanTandaTangan,
 } from '../lib/api'
 import {
   currentUser,
@@ -21,7 +23,7 @@ import {
   isKepalaBalai,
   isAdmin,
 } from '../lib/auth'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel, exportK8bToExcel, exportK8cToExcel, exportK9aToExcel, exportK9bToExcel } from '../lib/excel'
+import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel, exportK8bToExcel, exportK8cToExcel, exportK9aToExcel, exportK9bToExcel, exportK10ToExcel } from '../lib/excel'
 
 const props = defineProps({
   config: {
@@ -87,6 +89,53 @@ const successMessage = ref('')
 const infoMessage = ref('')
 const triwulanBulanDipakai = ref([])
 const triwulanBulanBelumTersimpan = ref([])
+
+// State blok tanda tangan editable (untuk form dengan config.signatureConfig, mis. K10)
+const signatureData = reactive({
+  tempatTanggal: '',
+  kepalaNama: '',
+  kepalaNip: '',
+  pembuatNama: '',
+  pembuatNip: '',
+})
+
+function buildDefaultTempatTanggal({ jenis_periode, bulan, tahun }) {
+  const kota = props.config.signatureConfig?.defaults?.tempatKota || 'Banjarmasin'
+  if (jenis_periode === 'triwulan') {
+    return `${kota}, `
+  }
+  const b = Number(bulan) || 1
+  const t = Number(tahun) || new Date().getFullYear()
+  const lastDay = new Date(t, b, 0).getDate()
+  const namaBulan = bulanList.find(m => m.value === b)?.label || `Bulan ${b}`
+  return `${kota}, ${lastDay} ${namaBulan} ${t}`
+}
+
+function loadSignatureData({ jenis_periode, id_wilayah, tahun, bulan, triwulan }) {
+  if (!props.config.signatureConfig) return
+  const defaults = props.config.signatureConfig.defaults || {}
+  const defaultTempatTanggal = buildDefaultTempatTanggal({ jenis_periode, bulan, tahun })
+  const saved = ambilTandaTangan(props.config.modul, {
+    id_wilayah,
+    tahun,
+    jenis_periode,
+    bulan,
+    triwulan,
+  })
+  if (saved) {
+    signatureData.tempatTanggal = saved.tempatTanggal ?? defaultTempatTanggal
+    signatureData.kepalaNama = saved.kepalaNama ?? (defaults.kepalaNama || '')
+    signatureData.kepalaNip = saved.kepalaNip ?? (defaults.kepalaNip || '')
+    signatureData.pembuatNama = saved.pembuatNama ?? (defaults.pembuatNama || '')
+    signatureData.pembuatNip = saved.pembuatNip ?? (defaults.pembuatNip || '')
+  } else {
+    signatureData.tempatTanggal = defaultTempatTanggal
+    signatureData.kepalaNama = defaults.kepalaNama || ''
+    signatureData.kepalaNip = defaults.kepalaNip || ''
+    signatureData.pembuatNama = defaults.pembuatNama || ''
+    signatureData.pembuatNip = defaults.pembuatNip || ''
+  }
+}
 
 // Penandatangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
 const activeWilayahInfo = computed(() => {
@@ -274,6 +323,14 @@ async function bukaFormIsian() {
         wilayah: wilObj,
       }
 
+      loadSignatureData({
+        jenis_periode: 'triwulan',
+        id_wilayah: Number(filter.id_wilayah),
+        tahun: Number(filter.tahun),
+        bulan: null,
+        triwulan: twOpt.value,
+      })
+
       isFormOpen.value = true
       return
     }
@@ -343,6 +400,14 @@ async function bukaFormIsian() {
         }
       })
     }
+
+    loadSignatureData({
+      jenis_periode: 'bulanan',
+      id_wilayah: doc.id_wilayah,
+      tahun: doc.tahun,
+      bulan: doc.bulan,
+      triwulan: doc.triwulan,
+    })
 
     isFormOpen.value = true
   } catch (err) {
@@ -444,6 +509,15 @@ async function simpan() {
         triwulan: activeLaporan.value.triwulan,
       }, editableRows)
 
+      if (props.config.signatureConfig) {
+        simpanTandaTangan(props.config.modul, {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          tahun: activeLaporan.value.tahun,
+          jenis_periode: 'triwulan',
+          triwulan: activeLaporan.value.triwulan,
+        }, signatureData)
+      }
+
       successMessage.value = 'Laporan tersimpan.'
       setTimeout(() => {
         if (successMessage.value === 'Laporan tersimpan.') successMessage.value = ''
@@ -522,6 +596,14 @@ async function simpan() {
     }
 
     await apiSimpanMatriksModul(activeLaporan.value.id_laporan, props.config.modul || 'k1', payloadBaris)
+    if (props.config.signatureConfig) {
+      simpanTandaTangan(props.config.modul, {
+        id_wilayah: activeLaporan.value.id_wilayah,
+        tahun: activeLaporan.value.tahun,
+        jenis_periode: 'bulanan',
+        bulan: activeLaporan.value.bulan,
+      }, signatureData)
+    }
     successMessage.value = 'Laporan tersimpan.'
     setTimeout(() => {
       if (successMessage.value === 'Laporan tersimpan.') successMessage.value = ''
@@ -620,7 +702,25 @@ async function downloadExcel() {
     const wilObj = activeWilayahInfo.value
     const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
 
-    if (props.config.kode === 'K9b') {
+    if (props.config.kode === 'K10') {
+      await exportK10ToExcel({
+        config: props.config,
+        meta: {
+          id_wilayah: activeLaporan.value.id_wilayah,
+          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
+          bulan: namaBulan,
+          triwulan: activeLaporan.value.triwulan,
+          triwulanRomawi: activeTriwulanRomawi.value,
+          tahun: activeLaporan.value.tahun,
+          kode: 'K10',
+          wilayahObj: wilObj,
+        },
+        rowsData,
+        summaryTotals: summaryTotals.value,
+        signatureData: { ...signatureData },
+      })
+    } else if (props.config.kode === 'K9b') {
       await exportK9bToExcel({
         config: props.config,
         meta: {
@@ -1676,8 +1776,75 @@ onMounted(() => {
 
       </div>
 
+      <!-- BLOK TANDA TANGAN EDITABLE (KONFIGURASI, MIS. K10) -->
+      <div
+        v-if="config.signatureConfig"
+        class="pt-4 border-t-2 border-slate-300 space-y-3"
+      >
+        <h3 class="text-sm font-black text-black">
+          {{ config.signatureConfig.title || 'Blok tanda tangan' }}
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-black text-black mb-1">
+              Tempat dan tanggal (pembuat laporan)
+            </label>
+            <input
+              type="text"
+              :disabled="isReadOnly"
+              v-model="signatureData.tempatTanggal"
+              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-black text-black mb-1">
+              Kepala Balai - nama
+            </label>
+            <input
+              type="text"
+              :disabled="isReadOnly"
+              v-model="signatureData.kepalaNama"
+              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-black text-black mb-1">
+              Kepala Balai - NIP
+            </label>
+            <input
+              type="text"
+              :disabled="isReadOnly"
+              v-model="signatureData.kepalaNip"
+              class="w-full bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-black text-black mb-1">
+              Pembuat laporan - nama
+            </label>
+            <input
+              type="text"
+              :disabled="isReadOnly"
+              v-model="signatureData.pembuatNama"
+              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-black text-black mb-1">
+              Pembuat laporan - NIP
+            </label>
+            <input
+              type="text"
+              :disabled="isReadOnly"
+              v-model="signatureData.pembuatNip"
+              class="w-full bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- BLOK TANDA TANGAN DINAMIS DARI wilayah_pengawasan (ATURAN BISNIS #5 PRD) -->
-      <div v-if="activeWilayahInfo" class="pt-4 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-black font-bold">
+      <div v-else-if="activeWilayahInfo" class="pt-4 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-black font-bold">
         <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
           <p class="font-normal">Mengetahui,</p>
           <p class="font-black text-sm">KEPALA BALAI PENGAWASAN</p>

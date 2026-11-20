@@ -1335,3 +1335,107 @@ export async function exportK9bToExcel({ config, meta, rowsData, summaryTotals }
   const fileName = `K9b_${wilayahName}_${periodeFile}_${tahun}.xlsx`
   XLSX.writeFile(wb, fileName)
 }
+
+
+export async function exportK10ToExcel({ config, meta, rowsData, summaryTotals, signatureData }) {
+  const { wilayahName, jenisPeriode, bulan, triwulanRomawi, tahun, kode } = meta
+
+  const XLSX = await import('xlsx')
+
+  const isTriwulan = jenisPeriode === 'triwulan'
+  const periodeLine = isTriwulan ? `Triwulan : ${triwulanRomawi}` : `Bulan : ${bulan}`
+  const periodeFile = isTriwulan ? `Triwulan_${triwulanRomawi}` : bulan
+
+  // Kolom: No (c0), Sektor/KLUI (c1), Jml. Persh. Melanggar (c2), Jml. Persh. Diajukan BAP (c3),
+  // Penghentian Penyidikan (c4), Denda (c5), Kurung (c6), Keterangan (c7) = 8 kolom total
+  const wsData = [
+    ['DATA PENYIDIKAN NORMA KETENAGAKERJAAN'],
+    [periodeLine],
+    [`Tahun : ${tahun}`],
+    [`Kabupaten/Wilayah : ${wilayahName}`],
+    [`Kode : ${kode || 'K10'}`],
+    [], // Baris kosong
+    // Header Baris 1 (r6, 8 kolom)
+    [
+      'No', 'Sektor/KLUI',
+      'Jml. Persh. Melanggar', 'Jml. Persh. Diajukan BAP', 'Penghentian Penyidikan',
+      'Putusan', '',
+      'Keterangan',
+    ],
+    // Header Baris 2 (r7, 8 kolom)
+    [
+      '', '', '', '', '',
+      'Denda', 'Kurung',
+      '',
+    ],
+  ]
+
+  // 9 baris data (sektor 1 sampai 9)
+  config.rows.forEach((rowDef) => {
+    const rowVal = rowsData[rowDef.id_klui] || {}
+    wsData.push([
+      rowDef.no,
+      rowDef.sektor_klui,
+      ...config.numericFields.map(f => rowVal[f.key] ?? 0),
+      rowVal.keterangan || '',
+    ])
+  })
+
+  // Baris JUMLAH
+  const colTotals = summaryTotals.colTotals || {}
+  wsData.push([
+    '', 'JUMLAH',
+    ...config.numericFields.map(f => colTotals[f.key] ?? 0),
+    '-',
+  ])
+
+  // Blok tanda tangan: kiri di kolom Sektor/KLUI (c1), kanan di kolom angka terakhir Kurung (c6)
+  const sig = signatureData || {}
+  const tempatTanggal = sig.tempatTanggal ?? ''
+  const kepalaNama = sig.kepalaNama ?? ''
+  const kepalaNipTrim = String(sig.kepalaNip ?? '').trim()
+  const pembuatNama = sig.pembuatNama ?? ''
+  const pembuatNipTrim = String(sig.pembuatNip ?? '').trim()
+
+  const kepalaNipCell = kepalaNipTrim ? `NIP. ${kepalaNipTrim}` : ''
+  const pembuatNipCell = pembuatNipTrim ? `NIP. ${pembuatNipTrim}` : ''
+
+  wsData.push([]) // 1 baris kosong
+  wsData.push(['', 'Mengetahui', '', '', '', '', tempatTanggal])
+  wsData.push(['', 'Kepala Balai', '', '', '', '', 'Pembuat Laporan'])
+  wsData.push([]) // ruang tanda tangan 1
+  wsData.push([]) // ruang tanda tangan 2
+  wsData.push([]) // ruang tanda tangan 3
+  wsData.push(['', kepalaNama, '', '', '', '', pembuatNama])
+  wsData.push(['', kepalaNipCell, '', '', '', '', pembuatNipCell])
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merges untuk header 2 baris (r6, r7)
+  ws['!merges'] = [
+    { s: { r: 6, c: 0 }, e: { r: 7, c: 0 } }, // No
+    { s: { r: 6, c: 1 }, e: { r: 7, c: 1 } }, // Sektor/KLUI
+    { s: { r: 6, c: 2 }, e: { r: 7, c: 2 } }, // Jml. Persh. Melanggar
+    { s: { r: 6, c: 3 }, e: { r: 7, c: 3 } }, // Jml. Persh. Diajukan BAP
+    { s: { r: 6, c: 4 }, e: { r: 7, c: 4 } }, // Penghentian Penyidikan
+    { s: { r: 6, c: 5 }, e: { r: 6, c: 6 } }, // Putusan (Denda, Kurung)
+    { s: { r: 6, c: 7 }, e: { r: 7, c: 7 } }, // Keterangan
+  ]
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 24 }, // Sektor/KLUI (juga memuat blok tanda tangan kiri)
+    { wch: 22 }, // Jml. Persh. Melanggar
+    { wch: 24 }, // Jml. Persh. Diajukan BAP
+    { wch: 22 }, // Penghentian Penyidikan
+    { wch: 12 }, // Denda
+    { wch: 28 }, // Kurung (juga memuat blok tanda tangan kanan)
+    { wch: 26 }, // Keterangan
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'K10')
+
+  const fileName = `K10_${wilayahName}_${periodeFile}_${tahun}.xlsx`
+  XLSX.writeFile(wb, fileName)
+}

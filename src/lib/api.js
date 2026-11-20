@@ -254,7 +254,7 @@ export async function apiGetDaftarLaporan(params = {}) {
   // Tambahkan referensi modul K1 s.d. K7 yang aktif agar tombol aksi pada antarmuka dapat dibuka
   return list.map(item => ({
     ...item,
-    modul_list: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8a', 'K8b', 'K8c', 'K9a', 'K9b'],
+    modul_list: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8a', 'K8b', 'K8c', 'K9a', 'K9b', 'K10'],
   }))
 }
 
@@ -431,6 +431,40 @@ export function simpanTriwulan(modul, { id_wilayah, tahun, triwulan }, editableR
 export function hapusSimpananTriwulan(modul, { id_wilayah, tahun, triwulan }) {
   try {
     localStorage.removeItem(getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan }))
+  } catch {}
+}
+
+// Helper penyimpanan blok tanda tangan per periode (Bulanan maupun Triwulan, mis. K10)
+function getTandaTanganStorageKey(modul, { id_wilayah, tahun, jenis_periode = 'bulanan', bulan = null, triwulan = null }) {
+  const periodeKey = jenis_periode === 'triwulan' ? `TW${Number(triwulan)}` : `B${Number(bulan)}`
+  return `rekap_tanda_tangan:${String(modul).toLowerCase()}:${Number(id_wilayah)}:${Number(tahun)}:${periodeKey}`
+}
+
+export function ambilTandaTangan(modul, params) {
+  try {
+    const raw = localStorage.getItem(getTandaTanganStorageKey(modul, params))
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function simpanTandaTangan(modul, params, data) {
+  const key = getTandaTanganStorageKey(modul, params)
+  localStorage.setItem(key, JSON.stringify({
+    updated_at: new Date().toISOString(),
+    tempatTanggal: data.tempatTanggal ?? '',
+    kepalaNama: data.kepalaNama ?? '',
+    kepalaNip: data.kepalaNip ?? '',
+    pembuatNama: data.pembuatNama ?? '',
+    pembuatNip: data.pembuatNip ?? '',
+  }))
+  return true
+}
+
+export function hapusTandaTangan(modul, params) {
+  try {
+    localStorage.removeItem(getTandaTanganStorageKey(modul, params))
   } catch {}
 }
 

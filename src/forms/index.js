@@ -7,6 +7,7 @@ import { formK6 } from './k6'
 import { formK7 } from './k7'
 import { formK8a } from './k8a'
 import { formK8b } from './k8b'
+import { formK8c } from './k8c'
 
 /**
  * Daftar Modul Matriks K1 s.d. K10
@@ -145,6 +146,7 @@ export const formConfigs = {
   K7: formK7,
   K8A: formK8a,
   K8B: formK8b,
+  K8C: formK8c,
 }
 
 export function getFormConfig(kode) {

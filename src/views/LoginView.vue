@@ -3,7 +3,6 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login, SEED_ACCOUNTS } from '../lib/auth'
 import logoDinas from '../assets/logodinas.jpeg'
-import logoPemprov from '../assets/logopemprov.svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,17 +52,11 @@ function isiAkunDemo(acc) {
       <div class="p-6 sm:p-8 space-y-6">
         <!-- Header Logo & Instansi -->
         <div class="text-center space-y-3">
-          <div class="flex items-center justify-center gap-4">
-            <img
-              :src="logoPemprov"
-              alt="Logo Provinsi Kalimantan Selatan"
-              class="h-14 w-14 object-contain"
-            />
-            <div class="h-10 w-px bg-slate-300"></div>
+          <div class="flex items-center justify-center">
             <img
               :src="logoDinas"
               alt="Logo Binwasnaker Wilayah I Banjarmasin"
-              class="h-14 w-14 object-contain rounded-lg border border-slate-200 bg-white p-0.5"
+              class="h-20 w-20 object-contain rounded-xl border border-slate-200 bg-white p-1 shadow-xs"
             />
           </div>
 

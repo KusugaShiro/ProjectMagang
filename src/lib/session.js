@@ -72,7 +72,7 @@ function loadSavedAuth() {
 
 const initial = loadSavedAuth()
 export const authToken = ref(initial.token)
-export const currentUser = ref(initial.user || SEED_ACCOUNTS[0])
+export const currentUser = ref(initial.user || null)
 
 export const isAuthenticated = computed(() => !!authToken.value && !!currentUser.value)
 export const userRole = computed(() => currentUser.value?.peran || 'guest')

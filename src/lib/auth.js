@@ -18,7 +18,7 @@ import {
   isAdmin,
   userWilayahId,
 } from './session'
-import { apiLogin, apiGetMe } from './api'
+import { apiLogin, apiGetMe, apiLogout } from './api'
 
 export {
   authToken,
@@ -34,43 +34,38 @@ export {
   userWilayahId,
 }
 
+// Login menggunakan email & kata sandi ke Backend Laravel
+export async function login(email, kata_sandi) {
+  return await apiLogin(email, kata_sandi)
+}
+
+// Keluar dari sesi aktif & hapus token lokal
+export async function logout() {
+  return await apiLogout()
+}
+
 // Berpindah akun seeder dan login langsung ke Backend Laravel
 export async function switchAccount(email, kata_sandi = 'password') {
   return await apiLogin(email, kata_sandi)
 }
 
-// Inisialisasi status autentikasi backend saat aplikasi pertama kali dimuat
+// Verifikasi token tersimpan ke backend (tidak auto-login agar pengguna wajib masuk lewat halaman Login)
 export async function initAuth() {
   const token = localStorage.getItem(TOKEN_KEY)
 
-  // Jika belum ada token atau token mock lama
   if (!token || token.startsWith('mock_token_') || token.startsWith('token_seeder_')) {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    authToken.value = null
-
-    // Lakukan login default ke backend dengan akun seeder Operator BJM
-    try {
-      await apiLogin('operator.bjm@k3.local', 'password')
-    } catch (e) {
-      console.warn('Auto-login backend ditangguhkan (server backend belum aktif):', e.message)
-      currentUser.value = SEED_ACCOUNTS[0]
-    }
-    return
+    clearSession()
+    return false
   }
 
-  // Jika token tersimpan ada, verifikasi ke backend
   try {
     await apiGetMe()
+    return true
   } catch (e) {
     if (e.status === 401) {
-      console.warn('Token sesi tidak lagi valid pada backend, mencoba login ulang...')
-      try {
-        const targetEmail = currentUser.value?.email || 'operator.bjm@k3.local'
-        await apiLogin(targetEmail, 'password')
-      } catch (err) {
-        console.warn('Gagal login ulang ke backend:', err.message)
-      }
+      clearSession()
+      return false
     }
+    return Boolean(authToken.value && currentUser.value)
   }
 }

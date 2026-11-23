@@ -1834,31 +1834,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- BLOK TANDA TANGAN DINAMIS DARI wilayah_pengawasan (ATURAN BISNIS #5 PRD) -->
-      <div v-else-if="activeWilayahInfo" class="pt-4 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs text-black font-bold">
-        <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
-          <p class="font-normal">Mengetahui,</p>
-          <p class="font-black text-sm">KEPALA BALAI PENGAWASAN</p>
-          <div class="h-14"></div>
-          <p class="font-black underline text-sm">{{ activeWilayahInfo.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep" }}</p>
-          <p class="text-[11px] font-mono">NIP. {{ activeWilayahInfo.nip_kepala_balai || '19740315 199803 2 007' }}</p>
-        </div>
-
-        <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
-          <p class="font-normal">
-            {{ activeWilayahInfo.nama_kabupaten_kota }}, {{ formatTanggalIndonesia(tanggalLaporan) || activeLaporan.tahun }}
-          </p>
-          <p class="font-black text-sm">PEMBUAT LAPORAN</p>
-          <div class="h-14"></div>
-          <p class="font-black underline text-sm">
-            {{ activeWilayahInfo.nama_pembuat_laporan || 'ACHMAD ZAKI SUBHAN, ST' }}
-          </p>
-          <p class="text-[11px] font-mono">
-            NIP. {{ activeWilayahInfo.nip_pembuat_laporan || '19780104 200904 1 002' }}
-          </p>
-        </div>
-      </div>
-
       <!-- EMPAT TOMBOL AKSI -->
       <div class="pt-4 flex flex-wrap items-center justify-end gap-3">
         <!-- Tombol Tutup -->

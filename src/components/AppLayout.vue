@@ -63,7 +63,7 @@ const currentTitle = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-white text-black font-sans flex flex-col antialiased selection:bg-slate-300 selection:text-black">
+  <div class="h-screen overflow-hidden bg-white text-black font-sans flex flex-col antialiased selection:bg-slate-300 selection:text-black">
 
     <!-- OVERLAY SIDEBAR MOBILE -->
     <div
@@ -73,26 +73,32 @@ const currentTitle = computed(() => {
     ></div>
 
     <!-- WRAPPER UTAMA -->
-    <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex min-h-0 overflow-hidden">
 
-      <!-- SIDEBAR KIRI (PUTIH & ABU-ABU BERSIH) -->
+      <!-- SIDEBAR KIRI (PUTIH & ABU-ABU BERSIH — EXPANDED / MINI ICON RAIL) -->
       <aside
         :class="[
-          'fixed inset-y-0 left-0 z-50 bg-white border-r-2 border-slate-300 flex flex-col transition-all duration-200 ease-in-out lg:static shrink-0',
+          'fixed inset-y-0 left-0 z-50 bg-white border-r-2 border-slate-300 flex flex-col transition-all duration-200 ease-in-out lg:static lg:h-full shrink-0',
           isMobileSidebarOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full w-72',
-          isDesktopSidebarOpen ? 'lg:translate-x-0 lg:w-72' : 'lg:-translate-x-full lg:w-0 lg:border-r-0 lg:overflow-hidden'
+          isDesktopSidebarOpen ? 'lg:translate-x-0 lg:w-72' : 'lg:translate-x-0 lg:w-16'
         ]"
       >
         <!-- Header Sidebar (Tinggi h-16 sejajar lurus dengan Top Bar) -->
-        <div class="h-16 px-4 border-b-2 border-slate-300 flex items-center justify-between gap-2 bg-white shrink-0">
+        <div
+          :class="[
+            'h-16 border-b-2 border-slate-300 flex items-center gap-2 bg-white shrink-0',
+            isDesktopSidebarOpen ? 'px-4 justify-between' : 'px-4 justify-between lg:px-0 lg:justify-center'
+          ]"
+        >
           <div class="flex items-center gap-2.5 min-w-0">
             <!-- Logo Dinas Binwasnaker -->
             <img
               :src="logoDinas"
               alt="Logo Binwasnaker Wilayah I Banjarmasin"
+              title="Laporan Pengawasan — Balai Wilayah I Banjarmasin"
               class="w-10 h-10 rounded-lg bg-white border border-slate-300 object-contain p-0.5 shrink-0"
             />
-            <div class="min-w-0">
+            <div :class="['min-w-0', isDesktopSidebarOpen ? '' : 'lg:hidden']">
               <h2 class="text-sm font-black text-black leading-tight tracking-wide truncate">
                 Laporan Pengawasan
               </h2>
@@ -114,77 +120,113 @@ const currentTitle = computed(() => {
         </div>
 
         <!-- Navigasi Menu Sidebar -->
-        <nav class="flex-1 overflow-y-auto p-3 space-y-6 text-xs custom-scrollbar bg-white">
+        <nav
+          :class="[
+            'flex-1 overflow-y-auto text-xs custom-scrollbar bg-white',
+            isDesktopSidebarOpen ? 'p-3 space-y-6' : 'p-3 space-y-6 lg:px-2 lg:py-3 lg:space-y-3'
+          ]"
+        >
 
           <!-- Menu Beranda -->
           <div>
             <router-link
               to="/"
+              title="Beranda"
               @click="closeMobileSidebar"
               :class="[
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg transition',
+                isDesktopSidebarOpen ? '' : 'lg:justify-center lg:px-0 lg:gap-0',
                 route.path === '/'
                   ? 'bg-slate-800 text-white font-black shadow-xs'
                   : 'text-slate-800 font-bold hover:bg-slate-100 hover:text-black'
               ]"
             >
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+              <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
               </svg>
-              <span>Beranda</span>
+              <span :class="isDesktopSidebarOpen ? '' : 'lg:hidden'">Beranda</span>
             </router-link>
           </div>
 
-          <!-- Grup: INPUT LAPORAN -->
+          <!-- Grup: INPUT LAPORAN (K1 s.d. K10) -->
           <div>
-            <div class="px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-slate-500 border-b border-slate-200 pb-1">
+            <div
+              :class="[
+                'px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-slate-500 border-b border-slate-200 pb-1',
+                isDesktopSidebarOpen ? '' : 'lg:hidden'
+              ]"
+            >
               INPUT LAPORAN
             </div>
+            <div
+              v-if="!isDesktopSidebarOpen"
+              class="hidden lg:block border-t border-slate-200 mx-1 mb-2"
+            ></div>
+
             <div class="space-y-1">
               <router-link
                 v-for="item in formList"
                 :key="item.kode"
                 :to="`/input/${item.kode.toLowerCase()}`"
+                :title="`${item.kode} - ${item.nama}`"
                 @click="closeMobileSidebar"
                 :class="[
                   'flex items-start gap-2.5 px-3 py-2 rounded-lg transition text-left',
+                  isDesktopSidebarOpen ? '' : 'lg:items-center lg:justify-center lg:px-0 lg:py-2 lg:gap-0',
                   route.path === `/input/${item.kode.toLowerCase()}`
                     ? 'bg-slate-800 text-white font-black shadow-xs'
                     : 'text-slate-800 font-bold hover:bg-slate-100 hover:text-black'
                 ]"
               >
-                <!-- Kode Tebal di Kiri -->
-                <span class="font-mono font-black text-xs shrink-0 w-9">
+                <!-- Kode Tebal di Kiri / Tengah saat Mini Rail -->
+                <span
+                  :class="[
+                    'font-mono font-black text-xs shrink-0',
+                    isDesktopSidebarOpen ? 'w-9' : 'w-9 lg:w-auto lg:text-[11px] lg:text-center'
+                  ]"
+                >
                   {{ item.kode }}
                 </span>
                 <!-- Nama Lengkap Termasuk (a), (b), (c) Tidak Terpotong -->
-                <span class="break-words leading-snug">
+                <span :class="['break-words leading-snug', isDesktopSidebarOpen ? '' : 'lg:hidden']">
                   {{ item.nama }}
                 </span>
               </router-link>
             </div>
           </div>
 
-          <!-- Grup: ARSIP -->
+          <!-- Grup: ARSIP (Laporan Tersimpan) -->
           <div>
-            <div class="px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-slate-500 border-b border-slate-200 pb-1">
+            <div
+              :class="[
+                'px-3 mb-2 text-[11px] font-black tracking-wider uppercase text-slate-500 border-b border-slate-200 pb-1',
+                isDesktopSidebarOpen ? '' : 'lg:hidden'
+              ]"
+            >
               ARSIP
             </div>
+            <div
+              v-if="!isDesktopSidebarOpen"
+              class="hidden lg:block border-t border-slate-200 mx-1 mb-2"
+            ></div>
+
             <div class="space-y-1">
               <router-link
                 to="/tersimpan"
+                title="Laporan Tersimpan"
                 @click="closeMobileSidebar"
                 :class="[
                   'flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition',
+                  isDesktopSidebarOpen ? '' : 'lg:justify-center lg:px-0 lg:gap-0',
                   route.path === '/tersimpan'
                     ? 'bg-slate-800 text-white font-black shadow-xs'
                     : 'text-slate-800 font-bold hover:bg-slate-100 hover:text-black'
                 ]"
               >
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
                 </svg>
-                <span>Laporan Tersimpan</span>
+                <span :class="isDesktopSidebarOpen ? '' : 'lg:hidden'">Laporan Tersimpan</span>
               </router-link>
             </div>
           </div>
@@ -192,7 +234,12 @@ const currentTitle = computed(() => {
         </nav>
 
         <!-- Footer Sidebar -->
-        <div class="p-3 border-t-2 border-slate-200 text-[11px] text-slate-600 font-bold text-center bg-slate-50">
+        <div
+          :class="[
+            'p-3 border-t-2 border-slate-200 text-[11px] text-slate-600 font-bold text-center bg-slate-50 shrink-0',
+            isDesktopSidebarOpen ? '' : 'lg:hidden'
+          ]"
+        >
           &copy; 2026 UPTD Balai Pengawasan Kalsel I
         </div>
       </aside>

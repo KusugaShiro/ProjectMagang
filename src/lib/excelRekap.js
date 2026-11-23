@@ -327,7 +327,7 @@ export async function exportRekapK1K10ToExcel({
   }
 
   const resolvedWilayahObj = wilayahObj || docs[0]?.wilayah || null
-  const wilayahName = resolvedWilayahObj?.teks_header_kabupaten || resolvedWilayahObj?.nama_kabupaten_kota || (Number(id_wilayah) === 2 ? 'Barito Kuala' : 'Banjarmasin')
+  const wilayahName = resolvedWilayahObj?.nama_kabupaten_kota || (Number(id_wilayah) === 2 ? 'Kabupaten Barito Kuala' : 'Kota Banjarmasin')
   const namaBulan = bulan ? (BULAN_NAMES[Number(bulan)] || `Bulan ${bulan}`) : 'Tahunan'
   const triwulan = bulan ? Math.floor((Number(bulan) + 2) / 3) : 'I - IV'
   const latestBulan = docs.length > 0 ? docs[docs.length - 1].bulan : null

@@ -1,6 +1,7 @@
 /**
  * Modul Manajemen Autentikasi Pengguna & Sesi K3
- * Berkomunikasi dengan Endpoint Backend Laravel (POST /api/login, GET /api/me, POST /api/logout)
+ * Selaras dengan tabel `pengguna` (id_pengguna, username, password)
+ * Endpoint: POST /api/login, GET /api/me, POST /api/logout
  */
 
 import {
@@ -8,15 +9,9 @@ import {
   currentUser,
   setSession,
   clearSession,
-  SEED_ACCOUNTS,
   TOKEN_KEY,
   USER_KEY,
   isAuthenticated,
-  userRole,
-  isOperator,
-  isKepalaBalai,
-  isAdmin,
-  userWilayahId,
 } from './session'
 import { apiLogin, apiGetMe, apiLogout } from './api'
 
@@ -25,18 +20,14 @@ export {
   currentUser,
   setSession,
   clearSession,
-  SEED_ACCOUNTS,
+  TOKEN_KEY,
+  USER_KEY,
   isAuthenticated,
-  userRole,
-  isOperator,
-  isKepalaBalai,
-  isAdmin,
-  userWilayahId,
 }
 
-// Login menggunakan email & kata sandi ke Backend Laravel
-export async function login(email, kata_sandi) {
-  return await apiLogin(email, kata_sandi)
+// Login menggunakan username & password sesuai skema tabel `pengguna`
+export async function login(username, password) {
+  return await apiLogin(username, password)
 }
 
 // Keluar dari sesi aktif & hapus token lokal
@@ -44,12 +35,7 @@ export async function logout() {
   return await apiLogout()
 }
 
-// Berpindah akun seeder dan login langsung ke Backend Laravel
-export async function switchAccount(email, kata_sandi = 'password') {
-  return await apiLogin(email, kata_sandi)
-}
-
-// Verifikasi token tersimpan ke backend (tidak auto-login agar pengguna wajib masuk lewat halaman Login)
+// Verifikasi token tersimpan ke backend (tidak auto-login)
 export async function initAuth() {
   const token = localStorage.getItem(TOKEN_KEY)
 

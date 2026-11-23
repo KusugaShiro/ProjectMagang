@@ -12,9 +12,10 @@ function finalizeSheet(XLSX, ws, sheetName, fileName, targetWorkbook = null) {
     XLSX.utils.book_append_sheet(targetWorkbook, ws, sheetName)
     return ws
   }
+  const safeName = String(fileName).replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_')
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
-  XLSX.writeFile(wb, fileName)
+  XLSX.writeFile(wb, safeName)
   return ws
 }
 
@@ -124,13 +125,13 @@ export async function exportK1ToExcel({ config, meta, rowsData, summaryTotals, t
   wsData.push([])
 
   // Footer Tanda Tangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
-  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaBalai = wilayahObj?.nama_kabupaten_kota || wilayahName
   const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
   const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
   const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
   const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
 
-  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, 2026`])
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, ${tahun}`])
   wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
   wsData.push([])
   wsData.push([])
@@ -245,13 +246,13 @@ export async function exportK2ToExcel({ config, meta, rowsData, summaryTotals, t
   wsData.push([])
 
   // Footer Tanda Tangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
-  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaBalai = wilayahObj?.nama_kabupaten_kota || wilayahName
   const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
   const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
   const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
   const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
 
-  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, 2026`])
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, ${tahun}`])
   wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
   wsData.push([])
   wsData.push([])
@@ -373,13 +374,13 @@ export async function exportK3ToExcel({ config, meta, rowsData, summaryTotals, t
   wsData.push([])
 
   // Footer Tanda Tangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
-  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaBalai = wilayahObj?.nama_kabupaten_kota || wilayahName
   const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
   const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
   const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
   const nipPembuat = wilayahObj?.nip_pembuat_laporan ? `NIP. ${wilayahObj.nip_pembuat_laporan}` : '-'
 
-  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, 2026`])
+  wsData.push(['', 'Mengetahui,', '', '', '', '', '', '', '', '', '', '', '', `${namaBalai}, ${tahun}`])
   wsData.push(['', 'KEPALA BALAI PENGAWASAN,', '', '', '', '', '', '', '', '', '', '', '', 'PEMBUAT LAPORAN,'])
   wsData.push([])
   wsData.push([])
@@ -486,7 +487,7 @@ export async function exportK4ToExcel({ config, meta, rowsData, summaryTotals, t
   wsData.push([])
 
   // Footer Tanda Tangan dari wilayah_pengawasan
-  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaBalai = wilayahObj?.nama_kabupaten_kota || wilayahName
   const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
   const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
   const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'
@@ -601,7 +602,7 @@ export async function exportK5ToExcel({ config, meta, rowsData, summaryTotals, t
   wsData.push([])
 
   // Footer Tanda Tangan
-  const namaBalai = wilayahObj?.teks_header_kabupaten || wilayahName
+  const namaBalai = wilayahObj?.nama_kabupaten_kota || wilayahName
   const namaKepala = wilayahObj?.nama_kepala_balai || "JUM'AH, S.Kep., M.Kep"
   const nipKepala = wilayahObj?.nip_kepala_balai ? `NIP. ${wilayahObj.nip_kepala_balai}` : 'NIP. 19740315 199803 2 007'
   const namaPembuat = wilayahObj?.nama_pembuat_laporan || 'PETUGAS PENGAWAS'

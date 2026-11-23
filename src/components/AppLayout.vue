@@ -5,8 +5,6 @@ import { formList } from '../forms'
 import logoDinas from '../assets/logodinas.jpeg'
 import {
   currentUser,
-  SEED_ACCOUNTS,
-  switchAccount,
   logout,
   initAuth,
 } from '../lib/auth'
@@ -31,16 +29,6 @@ function closeMobileSidebar() {
   isMobileSidebarOpen.value = false
 }
 
-async function pilihAkun(email) {
-  try {
-    await switchAccount(email)
-    isAccountMenuOpen.value = false
-    router.go(0)
-  } catch (err) {
-    alert('Gagal login ke akun backend: ' + (err.message || err))
-  }
-}
-
 async function handleLogout() {
   isAccountMenuOpen.value = false
   await logout()
@@ -56,16 +44,6 @@ const currentTitle = computed(() => {
     return found ? `${found.kode} - ${found.nama}` : `Form ${kode}`
   }
   return 'Laporan Pengawasan'
-})
-
-const peranLabel = computed(() => {
-  const p = currentUser.value?.peran
-  if (p === 'admin') return 'Administrator'
-  if (p === 'kepala_balai') return 'Kepala Balai'
-  if (p === 'operator_kabupaten') {
-    return currentUser.value?.id_wilayah === 1 ? 'Operator BJM' : 'Operator Batola'
-  }
-  return 'Pengguna'
 })
 </script>
 
@@ -235,10 +213,10 @@ const peranLabel = computed(() => {
               <div class="w-2.5 h-2.5 rounded-full bg-slate-500 ring-2 ring-slate-300"></div>
               <div class="text-left hidden sm:block">
                 <div class="text-xs font-black text-black leading-tight">
-                  {{ currentUser?.nama_pengguna || 'Pengguna' }}
+                  {{ currentUser?.username || 'pengawas' }}
                 </div>
                 <div class="text-[10px] text-slate-600 font-bold leading-tight">
-                  {{ peranLabel }}
+                  Pengawas Wilayah I
                 </div>
               </div>
               <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,36 +227,18 @@ const peranLabel = computed(() => {
             <!-- DROPDOWN AKUN & LOGOUT -->
             <div
               v-if="isAccountMenuOpen"
-              class="absolute right-0 top-12 w-64 bg-white border-2 border-slate-300 rounded-xl shadow-2xl p-2 z-50 text-xs"
+              class="absolute right-0 top-12 w-56 bg-white border-2 border-slate-300 rounded-xl shadow-2xl p-2 z-50 text-xs"
             >
               <div class="px-3 py-2 border-b border-slate-200">
-                <div class="text-xs font-black text-black truncate">{{ currentUser?.nama_pengguna || 'Pengguna' }}</div>
-                <div class="text-[10px] font-mono text-slate-600 truncate">{{ currentUser?.email || '-' }}</div>
+                <div class="text-xs font-black text-black truncate">
+                  {{ currentUser?.username || 'pengawas' }}
+                </div>
+                <div class="text-[10px] text-slate-600 font-bold">
+                  UPTD Balai Pengawasan Wilayah I
+                </div>
               </div>
 
-              <div class="px-3 pt-2 pb-1 text-slate-500 text-[10px] font-black uppercase tracking-wider">
-                Ganti Akun Pengujian
-              </div>
-              <div class="space-y-1">
-                <button
-                  v-for="acc in SEED_ACCOUNTS"
-                  :key="acc.email"
-                  @click="pilihAkun(acc.email)"
-                  :class="[
-                    'w-full text-left px-3 py-1.5 rounded-lg transition flex flex-col cursor-pointer',
-                    currentUser?.email === acc.email
-                      ? 'bg-slate-800 text-white font-black'
-                      : 'hover:bg-slate-100 text-slate-800 font-bold'
-                  ]"
-                >
-                  <span class="text-xs">{{ acc.nama_pengguna }}</span>
-                  <span class="text-[10px] font-mono opacity-80">
-                    {{ acc.peran }} {{ acc.wilayah ? `(${acc.wilayah.kode_wilayah})` : '(Global)' }}
-                  </span>
-                </button>
-              </div>
-
-              <div class="mt-2 pt-2 border-t border-slate-200">
+              <div class="mt-2">
                 <button
                   @click="handleLogout"
                   class="w-full px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer"

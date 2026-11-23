@@ -1,17 +1,17 @@
 /**
  * Lapisan Klien REST API Sistem Rekapitulasi Pelaporan Pengawasan Ketenagakerjaan & K3
- * Terhubung langsung ke Backend Laravel 12/13 (tanpa penyimpanan lokal/mock)
- * Sesuai dengan:
- * - PRD Database Rekapitulasi Pelaporan Pengawasan & K3 (K1–K10) (MySQL / MariaDB)
- * - Kontrak API Backend (REST API) v1.0.0
- * - UPTD Balai Pengawasan Ketenagakerjaan Daerah Wilayah I Provinsi Kalimantan Selatan
+ * Selaras dengan skema database `db_rekap_pengawasan_k3`:
+ * - pengguna (id_pengguna, username, password)
+ * - wilayah_pengawasan (id_wilayah, kode_wilayah, nama_kabupaten_kota, teks_header_kabupaten, penandatangan)
+ * - laporan_bulanan (id_laporan, id_wilayah, tahun, bulan, triwulan, tanggal_laporan, status_laporan: draf|final, waktu_input)
+ * - log_perubahan (aksi: tambah|ubah|hapus|finalkan|buka_kembali)
+ * - rekap_k1_pegawai s.d. rekap_k10_penyidikan
  */
 
 import { authToken, currentUser, setSession, clearSession } from './session'
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
-// Helper header standar Laravel API
 function getHeaders(isJson = true) {
   const headers = {
     'Accept': 'application/json',
@@ -25,7 +25,6 @@ function getHeaders(isJson = true) {
   return headers
 }
 
-// Wrapper Fetch API terstandarisasi untuk Backend Laravel
 async function fetchApi(path, options = {}) {
   const url = `${BASE_URL}${path}`
   const isJson = options.isJson !== false
@@ -39,7 +38,6 @@ async function fetchApi(path, options = {}) {
     headers,
   })
 
-  // Tangani respons bukan 2xx
   if (!response.ok) {
     let errData = {}
     try {
@@ -48,10 +46,9 @@ async function fetchApi(path, options = {}) {
 
     let errorMessage = errData.message || response.statusText || 'Terjadi kesalahan pada komunikasi server backend.'
 
-    // Ekstrak rincian validasi 422 dari Laravel
     if (errData.errors && typeof errData.errors === 'object') {
       const details = Object.values(errData.errors).flat().join('; ')
-      if (details) {
+      if (details && details !== errorMessage) {
         errorMessage += ` (${details})`
       }
     }
@@ -66,7 +63,6 @@ async function fetchApi(path, options = {}) {
     throw error
   }
 
-  // Jika respons 204 No Content
   if (response.status === 204) {
     return null
   }
@@ -74,57 +70,58 @@ async function fetchApi(path, options = {}) {
   return await response.json()
 }
 
-// Data Master Referensi (Untuk fallback tampilan UI jika jaringan backend terputus)
+// Data Master Referensi persis sesuai dump `db_rekap_pengawasan_k3`
 export const MASTER_WILAYAH = [
   {
     id_wilayah: 1,
     kode_wilayah: 'BJM',
     nama_kabupaten_kota: 'Kota Banjarmasin',
-    nama_provinsi: 'Kalimantan Selatan',
-    nama_balai: 'UPTD Balai Pengawasan Ketenagakerjaan Daerah Wilayah I Provinsi Kalimantan Selatan',
-    teks_header_kabupaten: 'Banjarmasin',
+    nama_provinsi: 'Provinsi Kalimantan Selatan',
+    nama_balai: 'Balai Pengawasan Wilayah I',
+    teks_header_kabupaten: ': Kota Banjarmasin, Provinsi Kalimantan Selatan / Balai Pengawasan Wilayah  I',
     nama_kepala_balai: "JUM'AH, S.Kep., M.Kep",
     nip_kepala_balai: '19740315 199803 2 007',
-    nama_pembuat_laporan: 'A. RAMADHAN',
-    nip_pembuat_laporan: '19780104 200904 1 002'
+    nama_pembuat_laporan: 'ACHMAD ZAKI SUBHAN, ST',
+    nip_pembuat_laporan: '19780104 200904 1 002',
   },
   {
     id_wilayah: 2,
     kode_wilayah: 'BTL',
     nama_kabupaten_kota: 'Kabupaten Barito Kuala',
-    nama_provinsi: 'Kalimantan Selatan',
-    nama_balai: 'UPTD Balai Pengawasan Ketenagakerjaan Daerah Wilayah I Provinsi Kalimantan Selatan',
-    teks_header_kabupaten: 'Barito Kuala',
+    nama_provinsi: 'Provinsi Kalimantan Selatan',
+    nama_balai: 'Balai Pengawasan Wilayah I',
+    teks_header_kabupaten: ': Kabupaten Barito Kuala, Provinsi Kalimantan Selatan / Balai Pengawasan Wilayah  I',
     nama_kepala_balai: "JUM'AH, S.Kep., M.Kep",
     nip_kepala_balai: '19740315 199803 2 007',
-    nama_pembuat_laporan: 'Operator Batola',
-    nip_pembuat_laporan: '19820512 201001 1 015'
-  }
+    nama_pembuat_laporan: 'ACHMAD ZAKI SUBHAN, ST',
+    nip_pembuat_laporan: '19780104 200904 1 002',
+  },
 ]
 
 export const MASTER_SEKTOR_KLUI = [
-  { id_klui: 1, nomor_urut: 1, kode_klui: '1', nama_sektor: 'Pertanian, Perburuan, Kehutanan, Perikanan' },
+  { id_klui: 1, nomor_urut: 1, kode_klui: '1', nama_sektor: 'Pertanian, Kehutanan, Perburuan dan Perikanan' },
   { id_klui: 2, nomor_urut: 2, kode_klui: '2', nama_sektor: 'Pertambangan dan Penggalian' },
   { id_klui: 3, nomor_urut: 3, kode_klui: '3', nama_sektor: 'Industri Pengolahan' },
   { id_klui: 4, nomor_urut: 4, kode_klui: '4', nama_sektor: 'Listrik, Gas dan Air' },
-  { id_klui: 5, nomor_urut: 5, kode_klui: '5', nama_sektor: 'Konstruksi' },
-  { id_klui: 6, nomor_urut: 6, kode_klui: '6', nama_sektor: 'Perdagangan Besar, Eceran, Rumah Makan & Hotel' },
+  { id_klui: 5, nomor_urut: 5, kode_klui: '5', nama_sektor: 'Bangunan / Konstruksi' },
+  { id_klui: 6, nomor_urut: 6, kode_klui: '6', nama_sektor: 'Perdagangan Besar, Eceran, Rumah Makan dan Hotel' },
   { id_klui: 7, nomor_urut: 7, kode_klui: '7', nama_sektor: 'Angkutan, Pergudangan dan Komunikasi' },
-  { id_klui: 8, nomor_urut: 8, kode_klui: '8', nama_sektor: 'Keuangan, Asuransi, Usaha Persewaan & Jasa Perusahaan' },
+  { id_klui: 8, nomor_urut: 8, kode_klui: '8', nama_sektor: 'Keuangan, Asuransi, Usaha Persewaan Bangunan dan Jasa Perusahaan' },
   { id_klui: 9, nomor_urut: 9, kode_klui: '9', nama_sektor: 'Jasa Kemasyarakatan, Sosial dan Perorangan' },
   { id_klui: 10, nomor_urut: 10, kode_klui: '0', nama_sektor: 'Kegiatan yang Belum Jelas Batasannya' },
 ]
 
 export const MASTER_JABATAN = [
-  { id_jabatan: 1, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'a', nama_jabatan: 'Pelaksana', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 1 },
-  { id_jabatan: 2, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'b', nama_jabatan: 'Pelaksana Lanjutan', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 2 },
-  { id_jabatan: 3, nomor_kelompok: '1', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'c', nama_jabatan: 'Penyelia', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 3 },
-  { id_jabatan: 4, nomor_kelompok: '2', kategori_pendidikan: 'Ahli/S1-S2', kode_sub_jabatan: 'a', nama_jabatan: 'Pertama', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: true, urutan_tampil: 4 },
-  { id_jabatan: 5, nomor_kelompok: '2', kategori_pendidikan: 'Ahli/S1-S2', kode_sub_jabatan: 'b', nama_jabatan: 'Muda', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: true, urutan_tampil: 5 },
-  { id_jabatan: 6, nomor_kelompok: '2', kategori_pendidikan: 'Ahli/S1-S2', kode_sub_jabatan: 'c', nama_jabatan: 'Madya', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: true, urutan_tampil: 6 },
+  { id_jabatan: 1, nomor_kelompok: '1.', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'a.', nama_jabatan: 'Pelaksana', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 1 },
+  { id_jabatan: 2, nomor_kelompok: '1.', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'b.', nama_jabatan: 'Pelaksana Lanjutan', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 2 },
+  { id_jabatan: 3, nomor_kelompok: '1.', kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: 'c.', nama_jabatan: 'Penyelia', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: false, urutan_tampil: 3 },
+  { id_jabatan: 4, nomor_kelompok: '2.', kategori_pendidikan: 'Ahli/S1 - S2', kode_sub_jabatan: 'a.', nama_jabatan: 'Pertama', tampil_di_k1: true, tampil_di_k5: true, tampil_di_k6: true, urutan_tampil: 4 },
+  { id_jabatan: 5, nomor_kelompok: '2.', kategori_pendidikan: 'Ahli/S1 - S2', kode_sub_jabatan: 'b.', nama_jabatan: 'Muda', tampil_di_k1: true, tampil_di_k5: true, tampil_di_k6: true, urutan_tampil: 5 },
+  { id_jabatan: 6, nomor_kelompok: '2.', kategori_pendidikan: 'Ahli/S1 - S2', kode_sub_jabatan: 'c.', nama_jabatan: 'Madya', tampil_di_k1: true, tampil_di_k5: false, tampil_di_k6: true, urutan_tampil: 6 },
+  { id_jabatan: 7, nomor_kelompok: null, kategori_pendidikan: 'Terampil/SLA', kode_sub_jabatan: null, nama_jabatan: 'Terampil', tampil_di_k1: false, tampil_di_k5: false, tampil_di_k6: true, urutan_tampil: 7 },
 ]
 
-// Rumus Triwulan sesuai Aturan Bisnis #1 PRD Database: (bulan + 2) DIV 3
+// Rumus Triwulan sesuai kolom STORED GENERATED `triwulan` di `laporan_bulanan`: (bulan + 2) DIV 3
 export function hitungTriwulanDB(bulan) {
   const b = Number(bulan) || 1
   return Math.floor((b + 2) / 3)
@@ -134,13 +131,13 @@ export function hitungTriwulanDB(bulan) {
 // 1. ENDPOINT AUTENTIKASI (POST /login, GET /me, POST /logout)
 // ==========================================
 
-export async function apiLogin(email, kata_sandi = 'password') {
+export async function apiLogin(username, password) {
   const res = await fetchApi('/login', {
     method: 'POST',
-    body: JSON.stringify({ email, kata_sandi }),
+    body: JSON.stringify({ username, password }),
   })
 
-  // Format backend: { token, token_type: 'Bearer', data: PenggunaResource }
+  // Format: { token, token_type: 'Bearer', data: { id_pengguna, username } }
   if (res?.token && res?.data) {
     setSession(res.token, res.data)
   }
@@ -190,10 +187,6 @@ export async function apiGetMasterWilayah() {
   } catch (e) {
     console.warn('Gagal memuat master wilayah dari backend, fallback ke master statis:', e.message)
   }
-
-  if (currentUser.value?.peran === 'operator_kabupaten' && currentUser.value.id_wilayah) {
-    return MASTER_WILAYAH.filter(w => w.id_wilayah === currentUser.value.id_wilayah)
-  }
   return MASTER_WILAYAH
 }
 
@@ -226,9 +219,9 @@ export async function apiGetMasterJabatan(modul = 'k1') {
     console.warn('Gagal memuat master jabatan dari backend, fallback ke master statis:', e.message)
   }
 
-  if (modul === 'k1') {
-    return MASTER_JABATAN.filter(j => j.tampil_di_k1)
-  }
+  if (modul === 'k1') return MASTER_JABATAN.filter(j => j.tampil_di_k1)
+  if (modul === 'k5') return MASTER_JABATAN.filter(j => j.tampil_di_k5)
+  if (modul === 'k6') return MASTER_JABATAN.filter(j => j.tampil_di_k6)
   return MASTER_JABATAN
 }
 
@@ -251,26 +244,28 @@ export async function apiGetDaftarLaporan(params = {}) {
 
   const list = res?.data || []
 
-  // Tambahkan referensi modul K1 s.d. K7 yang aktif agar tombol aksi pada antarmuka dapat dibuka
   return list.map(item => ({
     ...item,
     modul_list: ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8a', 'K8b', 'K8c', 'K9a', 'K9b', 'K10'],
   }))
 }
 
-export async function apiBuatLaporan({ id_wilayah, tahun, bulan }) {
+export async function apiBuatLaporan({ id_wilayah, tahun, bulan, tanggal_laporan = null }) {
   try {
+    const payload = {
+      id_wilayah: Number(id_wilayah),
+      tahun: Number(tahun),
+      bulan: Number(bulan),
+    }
+    if (tanggal_laporan) {
+      payload.tanggal_laporan = tanggal_laporan
+    }
     const res = await fetchApi('/laporan', {
       method: 'POST',
-      body: JSON.stringify({
-        id_wilayah: Number(id_wilayah),
-        tahun: Number(tahun),
-        bulan: Number(bulan),
-      }),
+      body: JSON.stringify(payload),
     })
     return res?.data || res
   } catch (err) {
-    // Jika laporan sudah ada di database backend (unique constraint 422), ambil laporan eksisting
     if (err.status === 422 || err.message?.includes('sudah ada')) {
       const list = await apiGetDaftarLaporan({ id_wilayah, tahun, bulan })
       const found = list.find(l => l.id_wilayah === Number(id_wilayah) && l.tahun === Number(tahun) && l.bulan === Number(bulan))
@@ -278,6 +273,14 @@ export async function apiBuatLaporan({ id_wilayah, tahun, bulan }) {
     }
     throw err
   }
+}
+
+export async function apiUpdateLaporan(id_laporan, { tanggal_laporan }) {
+  const res = await fetchApi(`/laporan/${id_laporan}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tanggal_laporan: tanggal_laporan || null }),
+  })
+  return res?.data || res
 }
 
 export async function apiGetDetailLaporan(id_laporan) {
@@ -296,24 +299,17 @@ export async function apiHapusLaporan(id_laporan) {
   return true
 }
 
-export async function apiKirimLaporan(id_laporan) {
-  const res = await fetchApi(`/laporan/${id_laporan}/kirim`, {
+// Alur status laporan sesuai enum `status_laporan`: 'draf' <-> 'final'
+export async function apiFinalkanLaporan(id_laporan) {
+  const res = await fetchApi(`/laporan/${id_laporan}/finalkan`, {
     method: 'POST',
     isJson: false,
   })
   return res?.data || res
 }
 
-export async function apiSahkanLaporan(id_laporan) {
-  const res = await fetchApi(`/laporan/${id_laporan}/sahkan`, {
-    method: 'POST',
-    isJson: false,
-  })
-  return res?.data || res
-}
-
-export async function apiKembalikanLaporan(id_laporan) {
-  const res = await fetchApi(`/laporan/${id_laporan}/kembalikan`, {
+export async function apiBukaKembaliLaporan(id_laporan) {
+  const res = await fetchApi(`/laporan/${id_laporan}/buka-kembali`, {
     method: 'POST',
     isJson: false,
   })
@@ -331,9 +327,8 @@ export async function apiGetLaporanLog(id_laporan) {
     id_log: l.id_log,
     aksi: l.aksi,
     tabel_terkait: l.nama_tabel,
-    catatan: `${(l.aksi || 'aktivitas').toUpperCase()} pada tabel ${l.nama_tabel || 'laporan'}${l.id_baris ? ` (baris #${l.id_baris})` : ''}`,
+    catatan: `${(l.aksi || 'aktivitas').toUpperCase()} pada tabel ${l.nama_tabel || 'laporan_bulanan'}${l.id_baris ? ` (baris #${l.id_baris})` : ''}`,
     waktu: l.waktu_perubahan,
-    pengguna: l.pengguna?.nama_pengguna || 'Sistem',
     data_lama: l.data_lama,
     data_baru: l.data_baru,
   }))
@@ -380,7 +375,6 @@ export async function apiGetRekapTriwulan(modul = 'k1', { id_wilayah, tahun, tri
 
 /**
  * Ambil laporan bulanan untuk 1 bulan dan 1 modul tertentu (digunakan untuk agregasi Triwulan K5–K10).
- * Mengembalikan { doc, data, meta } bila laporan bulanan dan data modulnya ada, atau null bila belum tersimpan.
  */
 export async function ambilLaporan(modul, { id_wilayah, tahun, bulan }) {
   const list = await apiGetDaftarLaporan({
@@ -404,8 +398,7 @@ export async function ambilLaporan(modul, { id_wilayah, tahun, bulan }) {
   }
 }
 
-// Helper penyimpanan khusus kolom editable pada mode Triwulan (mis. Jumlah & Keterangan pada K5)
-// Kolom otomatis TIDAK disimpan di sini karena selalu dihitung ulang dari laporan bulanan.
+// Helper penyimpanan khusus kolom editable pada mode Triwulan
 function getTriwulanStorageKey(modul, { id_wilayah, tahun, triwulan }) {
   return `rekap_triwulan_editable:${String(modul).toLowerCase()}:${Number(id_wilayah)}:${Number(tahun)}:TW${Number(triwulan)}`
 }

@@ -5,20 +5,13 @@ import {
   apiGetMasterWilayah,
   apiGetDaftarLaporan,
   apiHapusLaporan,
-  apiKirimLaporan,
-  apiSahkanLaporan,
-  apiKembalikanLaporan,
+  apiFinalkanLaporan,
+  apiBukaKembaliLaporan,
   apiGetLaporanLog,
   hapusTandaTangan,
 } from '../lib/api'
 import { exportRekapK1K10ToExcel } from '../lib/excelRekap'
 import { formList } from '../forms'
-import {
-  currentUser,
-  isOperator,
-  isKepalaBalai,
-  isAdmin,
-} from '../lib/auth'
 
 const router = useRouter()
 const items = ref([])
@@ -71,12 +64,8 @@ async function muatDaftar() {
     daftarWilayah.value = wilayahRes
     items.value = daftarRes
 
-    if (daftarWilayah.value.length > 0) {
-      if (isOperator.value && currentUser.value?.id_wilayah) {
-        eksporFilter.id_wilayah = currentUser.value.id_wilayah
-      } else if (!daftarWilayah.value.some(w => w.id_wilayah === eksporFilter.id_wilayah)) {
-        eksporFilter.id_wilayah = daftarWilayah.value[0].id_wilayah
-      }
+    if (daftarWilayah.value.length > 0 && !daftarWilayah.value.some(w => w.id_wilayah === eksporFilter.id_wilayah)) {
+      eksporFilter.id_wilayah = daftarWilayah.value[0].id_wilayah
     }
     if (daftarRes.length > 0 && !daftarRes.some(d => Number(d.tahun) === Number(eksporFilter.tahun))) {
       eksporFilter.tahun = Number(daftarRes[0].tahun)
@@ -171,8 +160,8 @@ function pilihDanBuka(item, event) {
 }
 
 function mintaKonfirmasiHapus(item) {
-  if (item.status_laporan === 'disahkan') {
-    alert('Laporan yang sudah berstatus disahkan tidak dapat dihapus.')
+  if (item.status_laporan === 'final') {
+    alert('Laporan yang sudah berstatus final (terkunci) tidak dapat dihapus. Buka kembali terlebih dahulu bila perlu menghapus.')
     return
   }
   itemToDelete.value = item
@@ -211,36 +200,25 @@ async function prosesHapus() {
   }
 }
 
-async function prosesKirim(item) {
-  if (!confirm(`Kirim laporan #${item.id_laporan} ke Kepala Balai?`)) return
+async function prosesFinalkan(item) {
+  if (!confirm(`Finalkan laporan #${item.id_laporan}? Data akan dikunci (read-only).`)) return
   try {
-    await apiKirimLaporan(item.id_laporan)
-    feedbackMessage.value = `Laporan #${item.id_laporan} berhasil dikirim ke Kepala Balai.`
+    await apiFinalkanLaporan(item.id_laporan)
+    feedbackMessage.value = `Laporan #${item.id_laporan} telah difinalkan dan dikunci.`
     await muatDaftar()
   } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengirim laporan.'
+    errorMessage.value = err.message || 'Gagal memfinalkan laporan.'
   }
 }
 
-async function prosesSahkan(item) {
-  if (!confirm(`Sahkan laporan #${item.id_laporan}? Data akan dikunci.`)) return
+async function prosesBukaKembali(item) {
+  if (!confirm(`Buka kembali laporan #${item.id_laporan} ke status draf?`)) return
   try {
-    await apiSahkanLaporan(item.id_laporan)
-    feedbackMessage.value = `Laporan #${item.id_laporan} telah disahkan dan dikunci.`
+    await apiBukaKembaliLaporan(item.id_laporan)
+    feedbackMessage.value = `Laporan #${item.id_laporan} dibuka kembali ke status draf.`
     await muatDaftar()
   } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengesahkan laporan.'
-  }
-}
-
-async function prosesKembalikan(item) {
-  if (!confirm(`Kembalikan laporan #${item.id_laporan} ke draf?`)) return
-  try {
-    await apiKembalikanLaporan(item.id_laporan)
-    feedbackMessage.value = `Laporan #${item.id_laporan} dikembalikan ke status draf.`
-    await muatDaftar()
-  } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengembalikan laporan.'
+    errorMessage.value = err.message || 'Gagal membuka kembali laporan.'
   }
 }
 
@@ -284,7 +262,7 @@ onMounted(() => {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <h1 class="text-xl sm:text-2xl font-black text-black">Laporan Tersimpan</h1>
-        <p class="text-xs sm:text-sm text-black font-bold">Daftar dokumen laporan bulanan dan status pengesahan (UPTD Balai Wilayah I).</p>
+        <p class="text-xs sm:text-sm text-black font-bold">Daftar dokumen laporan bulanan dan status finalisasi (UPTD Balai Wilayah I).</p>
       </div>
 
       <button
@@ -337,8 +315,7 @@ onMounted(() => {
           <label class="block text-xs font-black text-black mb-1">Wilayah Pengawasan</label>
           <select
             v-model.number="eksporFilter.id_wilayah"
-            :disabled="isOperator"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-200"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700"
           >
             <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
               {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
@@ -433,7 +410,7 @@ onMounted(() => {
               <th class="p-3 font-black">Periode (Bulan & TW)</th>
               <th class="p-3 font-black text-center">Tahun</th>
               <th class="p-3 font-black text-center">Status</th>
-              <th class="p-3 font-black">Pembuat</th>
+              <th class="p-3 font-black">Tanggal Laporan</th>
               <th class="p-3 font-black text-center min-w-[280px]">Aksi</th>
             </tr>
           </thead>
@@ -480,7 +457,7 @@ onMounted(() => {
               <!-- Tahun -->
               <td class="p-3 text-center font-mono font-black text-black">{{ item.tahun }}</td>
 
-              <!-- Status Badge -->
+              <!-- Status Badge (draf | final) -->
               <td class="p-3 text-center">
                 <!-- Draf (Abu-abu muda) -->
                 <span
@@ -490,31 +467,23 @@ onMounted(() => {
                   <span class="w-2 h-2 rounded-full bg-slate-600"></span>
                   draf
                 </span>
-                <!-- Terkirim (Putih border abu-abu) -->
+                <!-- Final (Abu-abu gelap teks putih, terkunci) -->
                 <span
-                  v-else-if="item.status_laporan === 'terkirim'"
-                  class="px-2.5 py-1 rounded-full text-[11px] font-black bg-white text-black border-2 border-slate-500 inline-flex items-center gap-1"
-                >
-                  <span class="w-2 h-2 rounded-full bg-slate-400 border border-slate-600"></span>
-                  terkirim
-                </span>
-                <!-- Disahkan (Abu-abu gelap teks putih) -->
-                <span
-                  v-else-if="item.status_laporan === 'disahkan'"
+                  v-else-if="item.status_laporan === 'final'"
                   class="px-2.5 py-1 rounded-full text-[11px] font-black bg-slate-800 text-white border-2 border-slate-900 inline-flex items-center gap-1"
-                  :title="`Disahkan pada: ${item.tanggal_pengesahan}`"
+                  title="Terkunci (pengesahan dilakukan manual di luar sistem)"
                 >
                   <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                   </svg>
-                  disahkan
+                  final
                 </span>
               </td>
 
-              <!-- Pembuat -->
+              <!-- Tanggal Laporan & Waktu Input -->
               <td class="p-3 text-xs text-black">
-                <div class="text-black font-black">{{ item.pengguna?.nama_pengguna || 'Operator' }}</div>
-                <div class="text-[10px] text-black font-mono font-semibold">{{ formatWaktu(item.waktu_input) }}</div>
+                <div class="text-black font-mono font-black">{{ item.tanggal_laporan ? String(item.tanggal_laporan).slice(0, 10) : '-' }}</div>
+                <div class="text-[10px] text-slate-600 font-mono font-semibold">{{ formatWaktu(item.waktu_input) }}</div>
               </td>
 
               <!-- Aksi -->
@@ -554,34 +523,24 @@ onMounted(() => {
                     <span>Excel</span>
                   </button>
 
-                  <!-- Kirim (Jika Draf - Putih border abu-abu) -->
+                  <!-- Finalkan (Jika Draf) -->
                   <button
-                    v-if="item.status_laporan === 'draf' && (isOperator || isAdmin)"
-                    @click="prosesKirim(item)"
-                    class="px-2 py-1 bg-white hover:bg-slate-100 text-black border-2 border-slate-400 rounded text-xs font-black transition cursor-pointer shadow-xs"
-                    title="Kirim ke Kepala Balai"
-                  >
-                    Kirim
-                  </button>
-
-                  <!-- Sahkan (Jika Terkirim - Abu-abu gelap teks putih) -->
-                  <button
-                    v-if="item.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
-                    @click="prosesSahkan(item)"
+                    v-if="item.status_laporan === 'draf'"
+                    @click="prosesFinalkan(item)"
                     class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 rounded text-xs font-black transition cursor-pointer shadow-xs"
-                    title="Sahkan Laporan"
+                    title="Finalkan dan kunci laporan"
                   >
-                    Sahkan
+                    Finalkan
                   </button>
 
-                  <!-- Kembalikan ke Draf (Merah muda) -->
+                  <!-- Buka Kembali (Jika Final) -->
                   <button
-                    v-if="(item.status_laporan === 'terkirim' || item.status_laporan === 'disahkan') && (isKepalaBalai || isAdmin)"
-                    @click="prosesKembalikan(item)"
+                    v-if="item.status_laporan === 'final'"
+                    @click="prosesBukaKembali(item)"
                     class="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-950 border border-red-500 rounded text-xs font-black transition cursor-pointer"
-                    title="Kembalikan ke status Draf"
+                    title="Buka kembali laporan ke status Draf"
                   >
-                    Kembali
+                    Buka Kembali
                   </button>
 
                   <!-- Log (Putih border abu-abu) -->
@@ -593,9 +552,9 @@ onMounted(() => {
                     Log
                   </button>
 
-                  <!-- Hapus (Merah pekat) -->
+                  <!-- Hapus (Merah pekat, hanya saat Draf) -->
                   <button
-                    v-if="item.status_laporan !== 'disahkan'"
+                    v-if="item.status_laporan !== 'final'"
                     @click="mintaKonfirmasiHapus(item)"
                     class="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-black transition cursor-pointer shadow-xs border border-red-800"
                     title="Hapus Laporan"
@@ -694,7 +653,6 @@ onMounted(() => {
               <span class="text-[10px] text-black font-mono font-bold">{{ formatWaktu(log.waktu) }}</span>
             </div>
             <p class="text-black font-bold">{{ log.catatan }}</p>
-            <div class="text-[10px] text-black font-semibold">Oleh: {{ log.pengguna || 'Sistem' }}</div>
           </div>
         </div>
 

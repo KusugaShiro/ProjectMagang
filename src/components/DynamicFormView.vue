@@ -5,11 +5,11 @@ import {
   apiGetMasterWilayah,
   apiGetDaftarLaporan,
   apiBuatLaporan,
+  apiUpdateLaporan,
   apiGetMatriksModul,
   apiSimpanMatriksModul,
-  apiKirimLaporan,
-  apiSahkanLaporan,
-  apiKembalikanLaporan,
+  apiFinalkanLaporan,
+  apiBukaKembaliLaporan,
   hitungTriwulanDB,
   ambilLaporan,
   ambilSimpananTriwulan,
@@ -17,12 +17,6 @@ import {
   ambilTandaTangan,
   simpanTandaTangan,
 } from '../lib/api'
-import {
-  currentUser,
-  isOperator,
-  isKepalaBalai,
-  isAdmin,
-} from '../lib/auth'
 import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel, exportK8bToExcel, exportK8cToExcel, exportK9aToExcel, exportK9bToExcel, exportK10ToExcel } from '../lib/excel'
 
 const props = defineProps({
@@ -143,9 +137,28 @@ const activeWilayahInfo = computed(() => {
   return daftarWilayah.value.find(w => w.id_wilayah === activeLaporan.value.id_wilayah) || activeLaporan.value.wilayah
 })
 
-// Cek apakah form berstatus terkunci (read-only)
+// Tanggal laporan (kolom `tanggal_laporan` di `laporan_bulanan` untuk tanda tangan Excel)
+const tanggalLaporan = ref('')
+
+function defaultEndOfMonthDate(tahun, bulan) {
+  const t = Number(tahun) || new Date().getFullYear()
+  const b = Number(bulan) || 1
+  const lastDay = new Date(t, b, 0).getDate()
+  return `${t}-${String(b).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+}
+
+function formatTanggalIndonesia(isoDate) {
+  if (!isoDate) return ''
+  const parts = String(isoDate).slice(0, 10).split('-')
+  if (parts.length !== 3) return isoDate
+  const [y, m, d] = parts
+  const namaBulan = bulanList.find(b => b.value === Number(m))?.label || m
+  return `${Number(d)} ${namaBulan} ${y}`
+}
+
+// Cek apakah form berstatus terkunci (final = read-only)
 const isReadOnly = computed(() => {
-  return activeLaporan.value?.status_laporan === 'disahkan'
+  return activeLaporan.value?.status_laporan === 'final'
 })
 
 // Cek apakah form berbasis matriks generik (K2, K3, K4, K5, dst.)
@@ -345,22 +358,25 @@ async function bukaFormIsian() {
     let doc = list.find(l => l.id_wilayah === Number(filter.id_wilayah) && l.tahun === Number(filter.tahun) && l.bulan === Number(filter.bulan))
 
     if (!doc) {
+      const defaultTgl = defaultEndOfMonthDate(filter.tahun, filter.bulan)
       doc = await apiBuatLaporan({
         id_wilayah: Number(filter.id_wilayah),
         tahun: Number(filter.tahun),
         bulan: Number(filter.bulan),
+        tanggal_laporan: defaultTgl,
       })
       infoMessage.value = 'Dokumen laporan baru telah dibuat (Status: Draf).'
     } else {
-      if (doc.status_laporan === 'disahkan') {
-        infoMessage.value = `Laporan ini telah disahkan pada ${doc.tanggal_pengesahan} dan berstatus terkunci (Read-Only).`
-      } else if (doc.status_laporan === 'terkirim') {
-        infoMessage.value = 'Laporan ini telah dikirim ke Kepala Balai dan sedang menunggu pengesahan.'
+      if (doc.status_laporan === 'final') {
+        infoMessage.value = 'Laporan ini berstatus FINAL (terkunci / Read-Only). Pengesahan dilakukan manual di luar sistem.'
       } else {
         infoMessage.value = 'Dokumen laporan draf dimuat. Menyimpan akan memperbarui data matriks.'
       }
     }
 
+    tanggalLaporan.value = doc.tanggal_laporan
+      ? String(doc.tanggal_laporan).slice(0, 10)
+      : defaultEndOfMonthDate(doc.tahun, doc.bulan)
     activeLaporan.value = { ...doc, jenis_periode: 'bulanan' }
     initEmptyRows()
 
@@ -596,6 +612,14 @@ async function simpan() {
     }
 
     await apiSimpanMatriksModul(activeLaporan.value.id_laporan, props.config.modul || 'k1', payloadBaris)
+    if (tanggalLaporan.value !== (activeLaporan.value.tanggal_laporan ? String(activeLaporan.value.tanggal_laporan).slice(0, 10) : '')) {
+      try {
+        await apiUpdateLaporan(activeLaporan.value.id_laporan, { tanggal_laporan: tanggalLaporan.value || null })
+        activeLaporan.value.tanggal_laporan = tanggalLaporan.value || null
+      } catch (e) {
+        console.warn('Pembaruan tanggal_laporan dilewati:', e.message)
+      }
+    }
     if (props.config.signatureConfig) {
       simpanTandaTangan(props.config.modul, {
         id_wilayah: activeLaporan.value.id_wilayah,
@@ -615,54 +639,35 @@ async function simpan() {
   }
 }
 
-async function aksiKirim() {
-  if (!activeLaporan.value) return
-  if (!confirm('Kirim laporan ini ke Kepala Balai untuk diperiksa?')) return
+async function aksiFinalkan() {
+  if (!activeLaporan.value?.id_laporan) return
+  if (!confirm('Finalkan laporan ini? Data akan dikunci (read-only); pengesahan dilakukan manual di luar sistem.')) return
   isWorkflowLoading.value = true
   errorMessage.value = ''
   try {
-    await apiKirimLaporan(activeLaporan.value.id_laporan)
-    activeLaporan.value.status_laporan = 'terkirim'
-    successMessage.value = 'Laporan berhasil dikirim ke Kepala Balai.'
-    infoMessage.value = 'Status laporan kini: Terkirim.'
+    await apiFinalkanLaporan(activeLaporan.value.id_laporan)
+    activeLaporan.value.status_laporan = 'final'
+    successMessage.value = 'Laporan telah difinalkan dan dikunci.'
+    infoMessage.value = 'Status laporan kini: FINAL (terkunci / read-only).'
   } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengirim laporan.'
+    errorMessage.value = err.message || 'Gagal memfinalkan laporan.'
   } finally {
     isWorkflowLoading.value = false
   }
 }
 
-async function aksiSahkan() {
-  if (!activeLaporan.value) return
-  if (!confirm('Sahkan laporan ini? Data akan dikunci (read-only).')) return
+async function aksiBukaKembali() {
+  if (!activeLaporan.value?.id_laporan) return
+  if (!confirm('Buka kembali laporan ini ke status Draf? Kunci data akan dibuka kembali.')) return
   isWorkflowLoading.value = true
   errorMessage.value = ''
   try {
-    await apiSahkanLaporan(activeLaporan.value.id_laporan)
-    activeLaporan.value.status_laporan = 'disahkan'
-    activeLaporan.value.tanggal_pengesahan = new Date().toISOString().slice(0, 10)
-    successMessage.value = 'Laporan telah disahkan.'
-    infoMessage.value = `Laporan telah disahkan pada ${activeLaporan.value.tanggal_pengesahan} dan data dikunci.`
-  } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengesahkan laporan.'
-  } finally {
-    isWorkflowLoading.value = false
-  }
-}
-
-async function aksiKembalikan() {
-  if (!activeLaporan.value) return
-  if (!confirm('Kembalikan laporan ini ke status Draf? Kunci data akan dibuka kembali.')) return
-  isWorkflowLoading.value = true
-  errorMessage.value = ''
-  try {
-    await apiKembalikanLaporan(activeLaporan.value.id_laporan)
+    await apiBukaKembaliLaporan(activeLaporan.value.id_laporan)
     activeLaporan.value.status_laporan = 'draf'
-    activeLaporan.value.tanggal_pengesahan = null
-    successMessage.value = 'Laporan dikembalikan ke status draf.'
+    successMessage.value = 'Laporan dibuka kembali ke status Draf.'
     infoMessage.value = 'Kunci data dibuka kembali. Anda dapat mengedit isian form.'
   } catch (err) {
-    errorMessage.value = err.message || 'Gagal mengembalikan laporan.'
+    errorMessage.value = err.message || 'Gagal membuka kembali laporan.'
   } finally {
     isWorkflowLoading.value = false
   }
@@ -707,7 +712,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -725,7 +730,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -742,7 +747,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -759,7 +764,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -776,7 +781,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -793,7 +798,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -810,7 +815,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -827,7 +832,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -844,7 +849,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
@@ -861,7 +866,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
           tahun: activeLaporan.value.tahun,
@@ -876,7 +881,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
           tahun: activeLaporan.value.tahun,
@@ -891,7 +896,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
           tahun: activeLaporan.value.tahun,
@@ -906,7 +911,7 @@ async function downloadExcel() {
         config: props.config,
         meta: {
           id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.teks_header_kabupaten || wilObj?.nama_kabupaten_kota || 'Banjarmasin',
+          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
           bulan: namaBulan,
           triwulan: activeLaporan.value.triwulan,
           tahun: activeLaporan.value.tahun,
@@ -925,11 +930,7 @@ async function downloadExcel() {
 async function muatMaster() {
   daftarWilayah.value = await apiGetMasterWilayah()
   if (daftarWilayah.value.length > 0) {
-    if (isOperator.value && currentUser.value?.id_wilayah) {
-      filter.id_wilayah = currentUser.value.id_wilayah
-    } else {
-      filter.id_wilayah = daftarWilayah.value[0].id_wilayah
-    }
+    filter.id_wilayah = daftarWilayah.value[0].id_wilayah
   }
 
   const q = route.query
@@ -991,14 +992,12 @@ onMounted(() => {
           <label class="block text-xs font-black text-black mb-1.5">Wilayah Pengawasan</label>
           <select
             v-model.number="filter.id_wilayah"
-            :disabled="isOperator"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700 disabled:bg-slate-200 disabled:text-black"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
           >
             <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
               {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
             </option>
           </select>
-          <p v-if="isOperator" class="text-[11px] text-black font-bold mt-1">Terkunci untuk operator kabupaten</p>
         </div>
 
         <!-- Jenis Periode (khusus form yang mendukung agregasi Triwulan, mis. K5 s.d. K10) -->
@@ -1101,8 +1100,22 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Badges & Tombol Workflow -->
+        <!-- Badges, Tanggal Laporan & Tombol Workflow (draf <-> final) -->
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Input Tanggal Laporan (untuk tanda tangan Excel) -->
+          <div v-if="activeLaporan.id_laporan && activeLaporan.jenis_periode === 'bulanan'" class="flex items-center gap-1.5">
+            <label for="tgl-laporan-input" class="text-[11px] font-black text-slate-700 whitespace-nowrap">
+              Tgl Laporan:
+            </label>
+            <input
+              id="tgl-laporan-input"
+              type="date"
+              v-model="tanggalLaporan"
+              :disabled="isReadOnly"
+              class="bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100"
+            />
+          </div>
+
           <!-- Status Draf (Abu-abu muda) -->
           <div
             v-if="activeLaporan.status_laporan === 'draf'"
@@ -1112,74 +1125,52 @@ onMounted(() => {
             Status: DRAF (Dapat Diedit)
           </div>
 
-          <!-- Status Terkirim (Putih border abu-abu) -->
+          <!-- Status Final (Abu-abu gelap teks putih) -->
           <div
-            v-else-if="activeLaporan.status_laporan === 'terkirim'"
-            class="px-3 py-1 rounded-full text-xs font-black bg-white text-black border-2 border-slate-500 flex items-center gap-1.5"
-          >
-            <span class="w-2.5 h-2.5 rounded-full bg-slate-400 border border-slate-600"></span>
-            Status: TERKIRIM (Menunggu Pengesahan)
-          </div>
-
-          <!-- Status Disahkan (Abu-abu gelap teks putih) -->
-          <div
-            v-else-if="activeLaporan.status_laporan === 'disahkan'"
+            v-else-if="activeLaporan.status_laporan === 'final'"
             class="px-3 py-1 rounded-full text-xs font-black bg-slate-800 text-white border-2 border-slate-900 flex items-center gap-1.5"
           >
             <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            DISAHKAN (Terkunci / Read-Only)
+            FINAL (Terkunci / Read-Only)
           </div>
 
-          <!-- Tombol Kirim -->
+          <!-- Tombol Finalkan Laporan -->
           <button
-            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf' && (isOperator || isAdmin)"
-            @click="aksiKirim"
-            :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white border-2 border-slate-900 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
-          >
-            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-            </svg>
-            Kirim ke Kepala Balai
-          </button>
-
-          <!-- Tombol Sahkan -->
-          <button
-            v-if="activeLaporan.status_laporan === 'terkirim' && (isKepalaBalai || isAdmin)"
-            @click="aksiSahkan"
+            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf'"
+            @click="aksiFinalkan"
             :disabled="isWorkflowLoading"
             class="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
           >
             <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            Sahkan Laporan
+            Finalkan Laporan
           </button>
 
-          <!-- Tombol Kembalikan ke Draf -->
+          <!-- Tombol Buka Kembali -->
           <button
-            v-if="(activeLaporan.status_laporan === 'terkirim' || activeLaporan.status_laporan === 'disahkan') && (isKepalaBalai || isAdmin)"
-            @click="aksiKembalikan"
+            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'final'"
+            @click="aksiBukaKembali"
             :disabled="isWorkflowLoading"
             class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-950 border-2 border-red-500 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1"
           >
             <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
             </svg>
-            Kembalikan ke Draf
+            Buka Kembali
           </button>
         </div>
       </div>
 
-      <!-- Banner jika terkunci (Read-Only) -->
+      <!-- Banner jika terkunci (Final / Read-Only) -->
       <div v-if="isReadOnly" class="p-3.5 rounded-lg bg-slate-100 border-2 border-slate-400 text-black text-xs flex items-center gap-2 font-bold">
         <svg class="w-5 h-5 shrink-0 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
         </svg>
         <span class="text-black">
-          Laporan telah disahkan pada <strong>{{ activeLaporan.tanggal_pengesahan }}</strong>. Modul K1 s.d. K10 berstatus <strong>read-only</strong> dan perubahan data dikunci (HTTP 403 Forbidden).
+          Laporan berstatus <strong>FINAL (terkunci / read-only)</strong>. Pengesahan dilakukan manual di luar sistem. Klik <strong>Buka Kembali</strong> bila perlu mengubah data.
         </span>
       </div>
 
@@ -1854,14 +1845,16 @@ onMounted(() => {
         </div>
 
         <div class="text-center p-3 bg-slate-50 border-2 border-slate-200 rounded-lg">
-          <p class="font-normal">{{ activeWilayahInfo.teks_header_kabupaten }}, 2026</p>
+          <p class="font-normal">
+            {{ activeWilayahInfo.nama_kabupaten_kota }}, {{ formatTanggalIndonesia(tanggalLaporan) || activeLaporan.tahun }}
+          </p>
           <p class="font-black text-sm">PEMBUAT LAPORAN</p>
           <div class="h-14"></div>
           <p class="font-black underline text-sm">
-            {{ activeWilayahInfo.nama_pembuat_laporan || currentUser?.nama_pengguna || 'PETUGAS PENGAWAS' }}
+            {{ activeWilayahInfo.nama_pembuat_laporan || 'ACHMAD ZAKI SUBHAN, ST' }}
           </p>
           <p class="text-[11px] font-mono">
-            NIP. {{ activeWilayahInfo.nip_pembuat_laporan || currentUser?.nip_pegawai || '-' }}
+            NIP. {{ activeWilayahInfo.nip_pembuat_laporan || '19780104 200904 1 002' }}
           </p>
         </div>
       </div>

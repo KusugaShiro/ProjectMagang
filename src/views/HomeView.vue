@@ -18,7 +18,7 @@ import { formList } from '../forms'
           UPTD Balai Pengawasan Wilayah I Kalimantan Selatan
         </h1>
         <p class="text-sm text-slate-700 font-semibold leading-relaxed mb-6">
-          Portal pelaporan terintegrasi untuk Wilayah Kota Banjarmasin dan Kabupaten Barito Kuala. Mendukung alur kerja dokumen bulanan (Draf &rarr; Terkirim &rarr; Disahkan/Terkunci), matriks K1 s.d. K10, dan ekspor berkas buku kerja Excel resmi Balai.
+          Portal pelaporan terintegrasi untuk Wilayah Kota Banjarmasin dan Kabupaten Barito Kuala. Mendukung alur kerja dokumen bulanan (Draf &rarr; Final/Terkunci), matriks K1 s.d. K10, dan ekspor berkas buku kerja Excel resmi Balai.
         </p>
         <div class="flex flex-wrap gap-3">
           <router-link

@@ -14,12 +14,9 @@ import { formList } from '../forms'
           <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
           Sistem Rekapitulasi Pelaporan Pengawasan Ketenagakerjaan & K3
         </div>
-        <h1 class="text-2xl sm:text-3xl font-black text-black tracking-tight mb-3">
+        <h1 class="text-2xl sm:text-3xl font-black text-black tracking-tight mb-5">
           UPTD Balai Pengawasan Wilayah I Kalimantan Selatan
         </h1>
-        <p class="text-sm text-slate-700 font-semibold leading-relaxed mb-6">
-          Portal pelaporan terintegrasi untuk Wilayah Kota Banjarmasin dan Kabupaten Barito Kuala. Mendukung alur kerja dokumen bulanan (Draf &rarr; Final/Terkunci), matriks K1 s.d. K10, dan ekspor berkas buku kerja Excel resmi Balai.
-        </p>
         <div class="flex flex-wrap gap-3">
           <router-link
             to="/input/k1"

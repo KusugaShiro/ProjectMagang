@@ -200,8 +200,71 @@ async function prosesHapus() {
   }
 }
 
+// State Pop-up Konfirmasi Iya / Tidak (Download Excel, Finalkan, Buka Kembali)
+const confirmModal = reactive({
+  open: false,
+  action: null,
+  item: null,
+  title: '',
+  message: '',
+  danger: false,
+})
+
+function mintaKonfirmasiAksi(action, item = null) {
+  if (action === 'excel_rekap') {
+    const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(eksporFilter.id_wilayah))
+    const namaWil = wilObj?.nama_kabupaten_kota || 'Wilayah terpilih'
+    const namaBulan = bulanNames[eksporFilter.bulan] || `Bulan ${eksporFilter.bulan}`
+    confirmModal.title = 'Konfirmasi Download Excel'
+    confirmModal.message = `Apakah Anda yakin ingin mengunduh berkas Excel gabungan K1–K10 untuk ${namaWil} periode ${namaBulan} ${eksporFilter.tahun}?`
+    confirmModal.danger = false
+  } else if (action === 'excel_baris' && item) {
+    const namaWil = item.wilayah?.nama_kabupaten_kota || `Wilayah ${item.id_wilayah}`
+    const namaBulan = bulanNames[item.bulan] || `Bulan ${item.bulan}`
+    confirmModal.title = 'Konfirmasi Download Excel'
+    confirmModal.message = `Apakah Anda yakin ingin mengunduh berkas Excel gabungan K1–K10 untuk ${namaWil} periode ${namaBulan} ${item.tahun}?`
+    confirmModal.danger = false
+  } else if (action === 'finalkan' && item) {
+    confirmModal.title = 'Konfirmasi Finalkan Laporan'
+    confirmModal.message = `Apakah Anda yakin ingin memfinalkan laporan #${item.id_laporan}? Data akan dikunci (read-only).`
+    confirmModal.danger = false
+  } else if (action === 'buka_kembali' && item) {
+    confirmModal.title = 'Konfirmasi Buka Kembali Laporan'
+    confirmModal.message = `Apakah Anda yakin ingin membuka kembali laporan #${item.id_laporan} ke status Draf?`
+    confirmModal.danger = true
+  } else {
+    return
+  }
+  confirmModal.action = action
+  confirmModal.item = item
+  confirmModal.open = true
+}
+
+function batalKonfirmasiAksi() {
+  confirmModal.open = false
+  confirmModal.action = null
+  confirmModal.item = null
+}
+
+async function lanjutKonfirmasiAksi() {
+  const action = confirmModal.action
+  const item = confirmModal.item
+  confirmModal.open = false
+  confirmModal.action = null
+  confirmModal.item = null
+
+  if (action === 'excel_rekap') {
+    await downloadExcelRekap()
+  } else if (action === 'excel_baris' && item) {
+    await downloadExcelBaris(item)
+  } else if (action === 'finalkan' && item) {
+    await prosesFinalkan(item)
+  } else if (action === 'buka_kembali' && item) {
+    await prosesBukaKembali(item)
+  }
+}
+
 async function prosesFinalkan(item) {
-  if (!confirm(`Finalkan laporan #${item.id_laporan}? Data akan dikunci (read-only).`)) return
   try {
     await apiFinalkanLaporan(item.id_laporan)
     feedbackMessage.value = `Laporan #${item.id_laporan} telah difinalkan dan dikunci.`
@@ -212,7 +275,6 @@ async function prosesFinalkan(item) {
 }
 
 async function prosesBukaKembali(item) {
-  if (!confirm(`Buka kembali laporan #${item.id_laporan} ke status draf?`)) return
   try {
     await apiBukaKembaliLaporan(item.id_laporan)
     feedbackMessage.value = `Laporan #${item.id_laporan} dibuka kembali ke status draf.`
@@ -352,7 +414,7 @@ onMounted(() => {
         <!-- Tombol Download -->
         <div>
           <button
-            @click="downloadExcelRekap"
+            @click="mintaKonfirmasiAksi('excel_rekap')"
             :disabled="isExporting || isLoading"
             class="w-full px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
@@ -447,9 +509,9 @@ onMounted(() => {
               </td>
 
               <!-- Periode -->
-              <td class="p-3">
+              <td class="p-3 whitespace-nowrap">
                 <span class="text-black font-black">{{ bulanNames[item.bulan] || `Bulan ${item.bulan}` }}</span>
-                <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded bg-slate-200 text-slate-800 border border-slate-400 font-black">
+                <span class="text-[10px] ml-1.5 px-2 py-0.5 rounded bg-slate-200 text-slate-800 border border-slate-400 font-black inline-block whitespace-nowrap">
                   TW {{ item.triwulan }}
                 </span>
               </td>
@@ -508,7 +570,7 @@ onMounted(() => {
 
                   <!-- Download Excel Gabungan K1-K10 untuk bulan ini -->
                   <button
-                    @click="downloadExcelBaris(item)"
+                    @click="mintaKonfirmasiAksi('excel_baris', item)"
                     :disabled="exportingRowId === item.id_laporan"
                     class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-black transition cursor-pointer border-2 border-slate-800 shadow-xs inline-flex items-center gap-1 disabled:opacity-50"
                     :title="`Download 1 file Excel berisi semua sheet K1–K10 untuk ${bulanNames[item.bulan]} ${item.tahun}`"
@@ -526,7 +588,7 @@ onMounted(() => {
                   <!-- Finalkan (Jika Draf) -->
                   <button
                     v-if="item.status_laporan === 'draf'"
-                    @click="prosesFinalkan(item)"
+                    @click="mintaKonfirmasiAksi('finalkan', item)"
                     class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 rounded text-xs font-black transition cursor-pointer shadow-xs"
                     title="Finalkan dan kunci laporan"
                   >
@@ -536,7 +598,7 @@ onMounted(() => {
                   <!-- Buka Kembali (Jika Final) -->
                   <button
                     v-if="item.status_laporan === 'final'"
-                    @click="prosesBukaKembali(item)"
+                    @click="mintaKonfirmasiAksi('buka_kembali', item)"
                     class="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-950 border border-red-500 rounded text-xs font-black transition cursor-pointer"
                     title="Buka kembali laporan ke status Draf"
                   >
@@ -568,6 +630,60 @@ onMounted(() => {
         </table>
       </div>
     </section>
+
+    <!-- POP-UP KONFIRMASI IYA / TIDAK (EXCEL, FINALKAN, BUKA KEMBALI) -->
+    <div
+      v-if="confirmModal.open"
+      @click.self="batalKonfirmasiAksi"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+    >
+      <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div
+          :class="[
+            'w-12 h-12 rounded-full border-2 flex items-center justify-center',
+            confirmModal.danger
+              ? 'bg-red-100 border-red-500 text-red-600'
+              : 'bg-slate-100 border-slate-400 text-slate-800'
+          ]"
+        >
+          <svg v-if="confirmModal.danger" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <svg v-else class="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-black text-black">{{ confirmModal.title }}</h3>
+          <p class="text-xs sm:text-sm text-slate-700 font-bold mt-1.5 leading-relaxed">
+            {{ confirmModal.message }}
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            @click="batalKonfirmasiAksi"
+            class="px-5 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
+          >
+            Tidak
+          </button>
+          <button
+            type="button"
+            @click="lanjutKonfirmasiAksi"
+            :class="[
+              'px-5 py-2 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition cursor-pointer border-2',
+              confirmModal.danger
+                ? 'bg-red-600 hover:bg-red-500 border-red-800'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-900'
+            ]"
+          >
+            Iya
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- MODAL KONFIRMASI HAPUS (MERAH) -->
     <div

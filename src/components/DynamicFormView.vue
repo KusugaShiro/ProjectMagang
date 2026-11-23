@@ -641,7 +641,6 @@ async function simpan() {
 
 async function aksiFinalkan() {
   if (!activeLaporan.value?.id_laporan) return
-  if (!confirm('Finalkan laporan ini? Data akan dikunci (read-only); pengesahan dilakukan manual di luar sistem.')) return
   isWorkflowLoading.value = true
   errorMessage.value = ''
   try {
@@ -658,7 +657,6 @@ async function aksiFinalkan() {
 
 async function aksiBukaKembali() {
   if (!activeLaporan.value?.id_laporan) return
-  if (!confirm('Buka kembali laporan ini ke status Draf? Kunci data akan dibuka kembali.')) return
   isWorkflowLoading.value = true
   errorMessage.value = ''
   try {
@@ -701,6 +699,16 @@ function mintaKonfirmasiAksi(action) {
     confirmModal.title = 'Konfirmasi Simpan Laporan'
     confirmModal.message = 'Apakah Anda yakin ingin menyimpan data laporan ini?'
     confirmModal.danger = false
+  } else if (action === 'finalkan') {
+    if (!activeLaporan.value?.id_laporan || isWorkflowLoading.value) return
+    confirmModal.title = 'Konfirmasi Finalkan Laporan'
+    confirmModal.message = 'Apakah Anda yakin ingin memfinalkan laporan ini? Data akan dikunci (read-only); pengesahan dilakukan manual di luar sistem.'
+    confirmModal.danger = false
+  } else if (action === 'buka_kembali') {
+    if (!activeLaporan.value?.id_laporan || isWorkflowLoading.value) return
+    confirmModal.title = 'Konfirmasi Buka Kembali Laporan'
+    confirmModal.message = 'Apakah Anda yakin ingin membuka kembali laporan ini ke status Draf? Kunci data akan dibuka kembali.'
+    confirmModal.danger = true
   } else {
     return
   }
@@ -725,6 +733,10 @@ async function lanjutKonfirmasiAksi() {
     await downloadExcel()
   } else if (action === 'simpan') {
     await simpan()
+  } else if (action === 'finalkan') {
+    await aksiFinalkan()
+  } else if (action === 'buka_kembali') {
+    await aksiBukaKembali()
   }
 }
 
@@ -1189,32 +1201,6 @@ onMounted(() => {
             </svg>
             FINAL (Terkunci / Read-Only)
           </div>
-
-          <!-- Tombol Finalkan Laporan -->
-          <button
-            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf'"
-            @click="aksiFinalkan"
-            :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white border-2 border-slate-900 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs"
-          >
-            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Finalkan Laporan
-          </button>
-
-          <!-- Tombol Buka Kembali -->
-          <button
-            v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'final'"
-            @click="aksiBukaKembali"
-            :disabled="isWorkflowLoading"
-            class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-950 border-2 border-red-500 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1"
-          >
-            <svg class="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-            </svg>
-            Buka Kembali
-          </button>
         </div>
       </div>
 
@@ -1932,6 +1918,32 @@ onMounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
           </svg>
           {{ isReadOnly ? 'Data Terkunci' : 'Simpan' }}
+        </button>
+
+        <!-- Tombol Finalkan Laporan (di kanan Simpan) -->
+        <button
+          v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf'"
+          @click="mintaKonfirmasiAksi('finalkan')"
+          :disabled="isWorkflowLoading"
+          class="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Finalkan Laporan
+        </button>
+
+        <!-- Tombol Buka Kembali (di kanan Simpan saat status Final) -->
+        <button
+          v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'final'"
+          @click="mintaKonfirmasiAksi('buka_kembali')"
+          :disabled="isWorkflowLoading"
+          class="px-4 py-2 bg-red-100 hover:bg-red-200 active:scale-95 text-red-950 font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-red-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+          </svg>
+          Buka Kembali
         </button>
       </div>
     </section>

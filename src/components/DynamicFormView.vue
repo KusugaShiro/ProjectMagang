@@ -673,9 +673,63 @@ async function aksiBukaKembali() {
   }
 }
 
+// State Pop-up Konfirmasi (Iya / Tidak) untuk tombol aksi form
+const confirmModal = reactive({
+  open: false,
+  action: null,
+  title: '',
+  message: '',
+  danger: false,
+})
+
+function mintaKonfirmasiAksi(action) {
+  if (action === 'tutup') {
+    confirmModal.title = 'Konfirmasi Tutup Form'
+    confirmModal.message = 'Apakah Anda yakin ingin menutup form ini? Perubahan yang belum disimpan tidak akan tersimpan.'
+    confirmModal.danger = false
+  } else if (action === 'reset') {
+    if (isReadOnly.value) return
+    confirmModal.title = 'Konfirmasi Reset ke Nol'
+    confirmModal.message = 'Apakah Anda yakin ingin mengosongkan semua isian tabel ke angka nol?'
+    confirmModal.danger = true
+  } else if (action === 'excel') {
+    confirmModal.title = 'Konfirmasi Download Excel'
+    confirmModal.message = 'Apakah Anda yakin ingin mengunduh berkas Excel untuk laporan ini?'
+    confirmModal.danger = false
+  } else if (action === 'simpan') {
+    if (isLoading.value || isReadOnly.value) return
+    confirmModal.title = 'Konfirmasi Simpan Laporan'
+    confirmModal.message = 'Apakah Anda yakin ingin menyimpan data laporan ini?'
+    confirmModal.danger = false
+  } else {
+    return
+  }
+  confirmModal.action = action
+  confirmModal.open = true
+}
+
+function batalKonfirmasiAksi() {
+  confirmModal.open = false
+  confirmModal.action = null
+}
+
+async function lanjutKonfirmasiAksi() {
+  const action = confirmModal.action
+  confirmModal.open = false
+  confirmModal.action = null
+  if (action === 'tutup') {
+    tutupForm()
+  } else if (action === 'reset') {
+    resetKeNol()
+  } else if (action === 'excel') {
+    await downloadExcel()
+  } else if (action === 'simpan') {
+    await simpan()
+  }
+}
+
 function resetKeNol() {
   if (isReadOnly.value) return
-  if (!confirm('Kosongkan semua isian tabel ke angka nol?')) return
   if (activeLaporan.value?.jenis_periode === 'triwulan' && props.config.triwulanConfig) {
     const editableFields = props.config.triwulanConfig.editableFields || []
     props.config.rows.forEach(r => {
@@ -1838,7 +1892,7 @@ onMounted(() => {
       <div class="pt-4 flex flex-wrap items-center justify-end gap-3">
         <!-- Tombol Tutup -->
         <button
-          @click="tutupForm"
+          @click="mintaKonfirmasiAksi('tutup')"
           class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
         >
           Tutup
@@ -1846,7 +1900,7 @@ onMounted(() => {
 
         <!-- Tombol Reset ke Nol -->
         <button
-          @click="resetKeNol"
+          @click="mintaKonfirmasiAksi('reset')"
           :disabled="isReadOnly"
           class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-950 font-black text-xs sm:text-sm rounded-lg border-2 border-red-600 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -1855,7 +1909,7 @@ onMounted(() => {
 
         <!-- Tombol Download Excel -->
         <button
-          @click="downloadExcel"
+          @click="mintaKonfirmasiAksi('excel')"
           class="px-4 py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-2 border-slate-800"
         >
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1866,7 +1920,7 @@ onMounted(() => {
 
         <!-- Tombol Simpan -->
         <button
-          @click="simpan"
+          @click="mintaKonfirmasiAksi('simpan')"
           :disabled="isLoading || isReadOnly"
           class="px-5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -1881,6 +1935,60 @@ onMounted(() => {
         </button>
       </div>
     </section>
+
+    <!-- POP-UP KONFIRMASI IYA / TIDAK -->
+    <div
+      v-if="confirmModal.open"
+      @click.self="batalKonfirmasiAksi"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+    >
+      <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div
+          :class="[
+            'w-12 h-12 rounded-full border-2 flex items-center justify-center',
+            confirmModal.danger
+              ? 'bg-red-100 border-red-500 text-red-600'
+              : 'bg-slate-100 border-slate-400 text-slate-800'
+          ]"
+        >
+          <svg v-if="confirmModal.danger" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <svg v-else class="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+
+        <div>
+          <h3 class="text-lg font-black text-black">{{ confirmModal.title }}</h3>
+          <p class="text-xs sm:text-sm text-slate-700 font-bold mt-1.5 leading-relaxed">
+            {{ confirmModal.message }}
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            @click="batalKonfirmasiAksi"
+            class="px-5 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
+          >
+            Tidak
+          </button>
+          <button
+            type="button"
+            @click="lanjutKonfirmasiAksi"
+            :class="[
+              'px-5 py-2 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition cursor-pointer border-2',
+              confirmModal.danger
+                ? 'bg-red-600 hover:bg-red-500 border-red-800'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-900'
+            ]"
+          >
+            Iya
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- KARTU 3: KETERANGAN KOLOM -->
     <section

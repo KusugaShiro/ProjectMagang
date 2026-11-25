@@ -1164,10 +1164,6 @@ onMounted(() => {
               <span>&bull;</span>
             </template>
             <span>Triwulan: <strong class="font-mono text-black">TW {{ activeLaporan.triwulan }}</strong></span>
-            <span>&bull;</span>
-            <span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-400 text-[11px]">
-              Tabel DB: <strong>{{ config.tabel_db || 'rekap_' + (config.modul || 'k1') }}</strong> ({{ config.triwulanConfig ? 'Agregasi SUM 3 Bulan' : 'Snapshot Akhir TW' }})
-            </span>
           </div>
         </div>
 

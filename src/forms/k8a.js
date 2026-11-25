@@ -99,7 +99,7 @@ export const formK8a = {
     allNumericLocked: true,
     autoSumFields: ['jmlKecl', 'jmlKorban', 'keracunan', 'pak', 'ta', 'tb', 'tc', 'td', 'te', 'tf', 'tg', 'th', 'ti', 'tj'],
     editableFields: ['keterangan'],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi kolom angka tidak bisa diedit. Kolom Ket tetap bisa diisi.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga kolom angka terkunci. Kolom Keterangan tetap dapat diisi.',
   },
 
   // Kartu Keterangan di bagian bawah tabel

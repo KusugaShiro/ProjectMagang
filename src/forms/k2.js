@@ -3,7 +3,7 @@
  * Berdasarkan PRD Database rekap_k2_obyek_pengawasan & Kontrak REST API Modul K2
  */
 
-// 14 Kolom Angka K2
+// 15 Kolom Angka K2 (sesuai RekapK2ObyekPengawasan::KOLOM_ANGKA di REST API)
 export const K2_NUMERIC_FIELDS = [
   // Jml Perusahaan
   { key: 'jumlah_perusahaan', label: 'Jml Prsh', group: 'jml_perusahaan', type: 'number', width: 'w-24 min-w-[90px]' },
@@ -24,6 +24,8 @@ export const K2_NUMERIC_FIELDS = [
   { key: 'phi_pkb', label: 'PKB', group: 'phi', type: 'number', width: 'w-20 min-w-[75px]' },
   { key: 'phi_sp', label: 'SP', group: 'phi', type: 'number', width: 'w-20 min-w-[75px]' },
   { key: 'phi_lembaga_bipartit', label: 'Lemb. Bipartit', group: 'phi', type: 'number', width: 'w-24 min-w-[95px]' },
+  // Penghargaan K3 (kolom integer sesuai RekapK2ObyekPengawasan)
+  { key: 'penghargaan_k3', label: 'Penghargaan K3', group: 'penghargaan_k3', type: 'number', width: 'w-28 min-w-[110px]' },
 ]
 
 export const formK2 = {
@@ -50,12 +52,6 @@ export const formK2 = {
   ],
 
   numericFields: K2_NUMERIC_FIELDS,
-  textField: {
-    key: 'penghargaan_k3',
-    label: 'Penghargaan K3',
-    placeholder: 'Penghargaan K3...',
-    width: 'w-48 min-w-[190px]',
-  },
 
   // Keterangan kolom persis sesuai ketentuan
   columnDescriptions: [

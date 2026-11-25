@@ -115,7 +115,7 @@ export const formK8b = {
     allNumericLocked: true,
     autoSumFields: ['sa', 'sb', 'sc', 'sd', 'se', 'sf', 'sg', 'sh', 'si', 'sj', 'sk', 'sl', 'sm', 'sn', 'so', 'sp', 'sq', 'sr'],
     editableFields: ['keterangan'],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi kolom angka tidak bisa diedit. Kolom Ket tetap bisa diisi.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga kolom angka terkunci. Kolom Keterangan tetap dapat diisi.',
   },
 
   columnDescriptionTitle: 'Keterangan',

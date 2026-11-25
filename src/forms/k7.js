@@ -82,7 +82,7 @@ export const formK7 = {
     allLocked: true,
     autoSumFields: ['pu', 'bt', 'paa', 'ptp', 'listrik', 'petir', 'kb', 'klinik', 'pestisida', 'catering', 'lain'],
     editableFields: [],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi semua kolom tidak bisa diedit.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga seluruh kolom terkunci.',
   },
 
   // K7 TIDAK punya kartu "Keterangan kolom"

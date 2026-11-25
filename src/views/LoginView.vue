@@ -17,7 +17,7 @@ async function handleLogin() {
   errorMessage.value = ''
   const trimmedUsername = username.value.trim()
   if (!trimmedUsername || !password.value) {
-    errorMessage.value = 'Username dan password wajib diisi.'
+    errorMessage.value = 'Nama pengguna dan kata sandi wajib diisi.'
     return
   }
 
@@ -29,7 +29,7 @@ async function handleLogin() {
       : '/'
     router.replace(redirectTarget)
   } catch (err) {
-    errorMessage.value = err.message || 'Gagal masuk. Periksa kembali username dan password Anda.'
+    errorMessage.value = err.message || 'Gagal masuk. Periksa kembali nama pengguna dan kata sandi Anda.'
   } finally {
     isLoading.value = false
   }
@@ -55,6 +55,8 @@ function isiAkunBawaan() {
             <img
               :src="logoDinas"
               alt="Logo Binwasnaker Wilayah I Banjarmasin"
+              width="80"
+              height="80"
               class="h-20 w-20 object-contain rounded-xl border border-slate-200 bg-white p-1 shadow-xs"
             />
           </div>
@@ -83,11 +85,11 @@ function isiAkunBawaan() {
           <span>{{ errorMessage }}</span>
         </div>
 
-        <!-- Form Login (sesuai tabel pengguna: username & password) -->
+        <!-- Form Masuk -->
         <form @submit.prevent="handleLogin" class="space-y-4">
           <div>
             <label for="login-username" class="block text-xs font-black text-black mb-1.5">
-              Username
+              Nama Pengguna
             </label>
             <input
               id="login-username"
@@ -95,14 +97,14 @@ function isiAkunBawaan() {
               type="text"
               autocomplete="username"
               required
-              placeholder="pengawas"
-              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-slate-800 transition"
+              placeholder="Masukkan nama pengguna"
+              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3.5 py-2.5 text-sm focus:border-slate-800 transition"
             />
           </div>
 
           <div>
             <label for="login-password" class="block text-xs font-black text-black mb-1.5">
-              Password
+              Kata Sandi
             </label>
             <div class="relative">
               <input
@@ -111,19 +113,19 @@ function isiAkunBawaan() {
                 :type="showPassword ? 'text' : 'password'"
                 autocomplete="current-password"
                 required
-                placeholder="Masukkan password"
-                class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg pl-3.5 pr-11 py-2.5 text-sm focus:outline-none focus:border-slate-800 transition"
+                placeholder="Masukkan kata sandi"
+                class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg pl-3.5 pr-11 py-2.5 text-sm focus:border-slate-800 transition"
               />
               <button
                 type="button"
                 @click="showPassword = !showPassword"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-600 hover:text-black cursor-pointer"
-                :aria-label="showPassword ? 'Sembunyikan password' : 'Tampilkan password'"
+                class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-600 hover:text-black cursor-pointer rounded"
+                :aria-label="showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'"
               >
-                <svg v-if="showPassword" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="showPassword" class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
                 </svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-else class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                 </svg>
@@ -136,7 +138,7 @@ function isiAkunBawaan() {
             :disabled="isLoading"
             class="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-black text-sm rounded-lg border-2 border-slate-900 shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <svg v-if="isLoading" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+            <svg v-if="isLoading" class="animate-spin w-4 h-4 text-white" aria-hidden="true" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
@@ -144,9 +146,9 @@ function isiAkunBawaan() {
           </button>
         </form>
 
-        <!-- Bantuan Akun Bawaan Database -->
+        <!-- Bantuan Akun Pengawas -->
         <div class="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-bold">
-          <span>Akun bawaan: <code class="font-mono text-black font-black">pengawas</code></span>
+          <span>Akun pengawas: <span class="font-mono text-black font-black">pengawas</span></span>
           <button
             type="button"
             @click="isiAkunBawaan"

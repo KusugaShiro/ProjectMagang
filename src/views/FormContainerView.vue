@@ -17,7 +17,7 @@ const formMeta = computed(() => getFormMeta(kodeParam.value))
     <div class="mb-6">
       <div class="flex items-center gap-2 mb-1">
         <span class="px-2.5 py-0.5 rounded text-xs font-black bg-slate-800 text-white border-2 border-slate-900">
-          FORM {{ kodeParam }}
+          FORMULIR {{ kodeParam }}
         </span>
         <h1 class="text-xl sm:text-2xl font-black text-black">
           {{ formMeta?.nama || 'Formulir Pengawasan' }}

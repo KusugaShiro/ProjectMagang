@@ -1,6 +1,5 @@
 /**
- * Modul Manajemen Autentikasi Pengguna & Sesi K3
- * Selaras dengan tabel `pengguna` (id_pengguna, username, password)
+ * Modul Manajemen Autentikasi Pengguna & Sesi
  * Endpoint: POST /api/login, GET /api/me, POST /api/logout
  */
 
@@ -25,21 +24,17 @@ export {
   isAuthenticated,
 }
 
-// Login menggunakan username & password sesuai skema tabel `pengguna`
 export async function login(username, password) {
   return await apiLogin(username, password)
 }
 
-// Keluar dari sesi aktif & hapus token lokal
 export async function logout() {
   return await apiLogout()
 }
 
-// Verifikasi token tersimpan ke backend (tidak auto-login)
 export async function initAuth() {
   const token = localStorage.getItem(TOKEN_KEY)
-
-  if (!token || token.startsWith('mock_token_') || token.startsWith('token_seeder_')) {
+  if (!token) {
     clearSession()
     return false
   }

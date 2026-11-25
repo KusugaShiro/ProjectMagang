@@ -78,12 +78,12 @@ export const formK10 = {
     allNumericLocked: true,
     autoSumFields: ['jmlMelanggar', 'jmlBap', 'henti', 'denda', 'kurung'],
     editableFields: ['keterangan'],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi kolom angka tidak bisa diedit. Kolom Ket tetap bisa diisi.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga kolom angka terkunci. Kolom Keterangan tetap dapat diisi.',
   },
 
   // Blok tanda tangan yang dapat diedit di bawah tabel (sebelum tombol aksi)
   signatureConfig: {
-    title: 'Blok tanda tangan',
+    title: 'Penandatangan Laporan',
     defaults: K10_SIGNATURE_DEFAULTS,
   },
 

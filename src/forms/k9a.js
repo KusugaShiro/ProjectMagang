@@ -116,7 +116,7 @@ export const formK9a = {
       'pdsTk', 'pdsUpah', 'pdsProg', 'menggkIuran', 'lain',
     ],
     editableFields: ['keterangan'],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi kolom angka tidak bisa diedit. Kolom Ket tetap bisa diisi.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga kolom angka terkunci. Kolom Keterangan tetap dapat diisi.',
   },
 
   columnDescriptionTitle: 'Keterangan',

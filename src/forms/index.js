@@ -53,7 +53,7 @@ export const formList = [
     tabel_db: 'rekap_k4_jamsostek_bpjs',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'snapshot',
-    deskripsi_triwulan: 'Posisi bulan terakhir triwulan (auto-fill dari K2)',
+    deskripsi_triwulan: 'Posisi bulan terakhir triwulan (otomatis dari K2)',
   },
   {
     kode: 'K5',
@@ -62,17 +62,17 @@ export const formList = [
     tabel_db: 'rekap_k5_pemeriksaan',
     dimensi: 'jabatan (2 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan (pengawas = snapshot)',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan (jumlah pengawas mengikuti bulan terakhir)',
   },
   {
     kode: 'K6',
     nama: 'Pemeriksaan Rinci (APBN)',
-    detail: 'Laporan Rincian Pemeriksaan APBN (Matriks 3D Jabatan x KLUI x 3 Pemeriksaan)',
+    detail: 'Laporan Rincian Pemeriksaan APBN Menurut Jabatan dan Sektor Usaha (KLUI)',
     tabel_db: 'rekap_k6_pemeriksaan_header',
     tabel_detail: 'rekap_k6_pemeriksaan_detail_klui',
     dimensi: '3D (4 jabatan x 10 KLUI)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K7',
@@ -81,7 +81,7 @@ export const formList = [
     tabel_db: 'rekap_k7_perizinan_k3',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K8a',
@@ -90,7 +90,7 @@ export const formList = [
     tabel_db: 'rekap_k8a_kecelakaan_tipe',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K8b',
@@ -99,7 +99,7 @@ export const formList = [
     tabel_db: 'rekap_k8b_kecelakaan_sumber',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K8c',
@@ -108,7 +108,7 @@ export const formList = [
     tabel_db: 'rekap_k8c_kecelakaan_akibat',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K9a',
@@ -117,7 +117,7 @@ export const formList = [
     tabel_db: 'rekap_k9a_pelanggaran_kerja',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K9b',
@@ -126,7 +126,7 @@ export const formList = [
     tabel_db: 'rekap_k9b_pelanggaran_k3',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
   {
     kode: 'K10',
@@ -135,7 +135,7 @@ export const formList = [
     tabel_db: 'rekap_k10_penyidikan',
     dimensi: 'klui (10 baris)',
     mode_triwulan: 'sum',
-    deskripsi_triwulan: 'Jumlah akumulasi 3 bulan',
+    deskripsi_triwulan: 'Rekap otomatis 3 bulan',
   },
 ]
 

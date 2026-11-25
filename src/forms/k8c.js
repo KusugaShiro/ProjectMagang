@@ -11,9 +11,9 @@ export const K8C_NUMERIC_FIELDS = [
   { key: 'stmb', apiKey: 'akibat_stmb', label: 'STMB', width: 'w-16 min-w-[65px]' },
   { key: 'cacat', apiKey: 'akibat_cacat', label: 'Cacat', width: 'w-16 min-w-[65px]' },
   { key: 'md', apiKey: 'akibat_meninggal_dunia', label: 'MD', width: 'w-16 min-w-[65px]' },
-  { key: 'berkala', apiKey: 'santunan_berkala', label: 'Berkala', width: 'w-24 min-w-[90px]' },
-  { key: 'sekaligus', apiKey: 'santunan_sekaligus', label: 'Sekaligus', width: 'w-24 min-w-[90px]' },
-  { key: 'kerg', apiKey: 'kerugian_material', label: 'Kerg Matrl', width: 'w-24 min-w-[95px]' },
+  { key: 'berkala', apiKey: 'santunan_berkala', label: 'Berkala', decimal: true, width: 'w-24 min-w-[90px]' },
+  { key: 'sekaligus', apiKey: 'santunan_sekaligus', label: 'Sekaligus', decimal: true, width: 'w-24 min-w-[90px]' },
+  { key: 'kerg', apiKey: 'kerugian_material', label: 'Kerg Matrl', decimal: true, width: 'w-24 min-w-[95px]' },
   { key: 'hrhlg', apiKey: 'hari_hilang', label: 'Hr Hlg', width: 'w-20 min-w-[80px]' },
   { key: 'lain', apiKey: 'lain_lain', label: 'Lain2', width: 'w-20 min-w-[80px]' },
 ]
@@ -89,7 +89,7 @@ export const formK8c = {
     allNumericLocked: true,
     autoSumFields: ['kk', 'pak', 'sembuh', 'stmb', 'cacat', 'md', 'berkala', 'sekaligus', 'kerg', 'hrhlg', 'lain'],
     editableFields: ['keterangan'],
-    infoText: 'Triwulan dihitung otomatis dari laporan bulanan, jadi kolom angka tidak bisa diedit. Kolom Ket tetap bisa diisi.',
+    infoText: 'Rekap otomatis 3 bulan dari laporan bulanan, sehingga kolom angka terkunci. Kolom Keterangan tetap dapat diisi.',
   },
 
   columnDescriptionTitle: 'Keterangan',

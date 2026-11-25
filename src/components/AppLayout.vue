@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formList } from '../forms'
 import logoDinas from '../assets/logodinas.jpeg'
@@ -8,6 +8,7 @@ import {
   logout,
   initAuth,
 } from '../lib/auth'
+import { hasActiveUnsavedChanges, bypassUnsavedGuard } from '../lib/unsavedGuard'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,11 +17,28 @@ const isDesktopSidebarOpen = ref(true)
 const isAccountMenuOpen = ref(false)
 const isLogoutConfirmOpen = ref(false)
 
+function handleKeydown(event) {
+  if (event.key === 'Escape') {
+    if (isLogoutConfirmOpen.value) {
+      isLogoutConfirmOpen.value = false
+    } else if (isAccountMenuOpen.value) {
+      isAccountMenuOpen.value = false
+    } else if (isMobileSidebarOpen.value) {
+      isMobileSidebarOpen.value = false
+    }
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown)
   const valid = await initAuth()
   if (!valid) {
     router.replace({ name: 'Login' })
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 
 function toggleSidebar() {
@@ -46,8 +64,11 @@ function batalLogout() {
 
 async function handleLogout() {
   isLogoutConfirmOpen.value = false
+  bypassUnsavedGuard.value = true
+  hasActiveUnsavedChanges.value = false
   await logout()
-  router.replace({ name: 'Login' })
+  await router.replace({ name: 'Login' })
+  bypassUnsavedGuard.value = false
 }
 
 const currentTitle = computed(() => {
@@ -56,7 +77,7 @@ const currentTitle = computed(() => {
   if (route.params.kode) {
     const kode = route.params.kode.toUpperCase()
     const found = formList.find(f => f.kode.toUpperCase() === kode)
-    return found ? `${found.kode} - ${found.nama}` : `Form ${kode}`
+    return found ? `${found.kode} - ${found.nama}` : `Formulir ${kode}`
   }
   return 'Laporan Pengawasan'
 })
@@ -95,7 +116,9 @@ const currentTitle = computed(() => {
             <img
               :src="logoDinas"
               alt="Logo Binwasnaker Wilayah I Banjarmasin"
-              title="Laporan Pengawasan — Balai Wilayah I Banjarmasin"
+              title="Laporan Pengawasan - Balai Wilayah I Banjarmasin"
+              width="40"
+              height="40"
               class="w-10 h-10 rounded-lg bg-white border border-slate-300 object-contain p-0.5 shrink-0"
             />
             <div :class="['min-w-0', isDesktopSidebarOpen ? '' : 'lg:hidden']">
@@ -110,10 +133,12 @@ const currentTitle = computed(() => {
 
           <!-- Tombol Tutup Sidebar di Mobile -->
           <button
+            type="button"
             @click="closeMobileSidebar"
-            class="lg:hidden p-1 rounded-lg text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
+            aria-label="Tutup menu navigasi"
+            class="lg:hidden p-2 rounded-lg text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
           >
-            <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
@@ -268,10 +293,14 @@ const currentTitle = computed(() => {
             </h1>
           </div>
 
-          <!-- USER SESI & LOGOUT -->
+          <!-- USER SESI & KELUAR -->
           <div class="relative flex items-center gap-3">
             <button
+              type="button"
               @click="isAccountMenuOpen = !isAccountMenuOpen"
+              :aria-expanded="isAccountMenuOpen"
+              aria-haspopup="menu"
+              aria-label="Menu akun pengguna"
               class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white border-2 border-slate-400 hover:bg-slate-100 transition cursor-pointer shadow-xs"
             >
               <div class="w-2.5 h-2.5 rounded-full bg-slate-500 ring-2 ring-slate-300"></div>
@@ -283,12 +312,12 @@ const currentTitle = computed(() => {
                   Pengawas Wilayah I
                 </div>
               </div>
-              <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
               </svg>
             </button>
 
-            <!-- DROPDOWN AKUN & LOGOUT -->
+            <!-- DROPDOWN AKUN & KELUAR -->
             <div
               v-if="isAccountMenuOpen"
               class="absolute right-0 top-12 w-56 bg-white border-2 border-slate-300 rounded-xl shadow-2xl p-2 z-50 text-xs"
@@ -304,13 +333,14 @@ const currentTitle = computed(() => {
 
               <div class="mt-2">
                 <button
+                  type="button"
                   @click="mintaKonfirmasiLogout"
                   class="w-full px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 text-red-600" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                   </svg>
-                  <span>Keluar (Logout)</span>
+                  <span>Keluar</span>
                 </button>
               </div>
             </div>
@@ -325,23 +355,28 @@ const currentTitle = computed(() => {
 
     </div>
 
-    <!-- POP-UP KONFIRMASI LOGOUT (IYA / TIDAK) -->
+    <!-- POP-UP KONFIRMASI KELUAR (IYA / TIDAK) -->
     <div
       v-if="isLogoutConfirmOpen"
       @click.self="batalLogout"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-dialog-title"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
     >
       <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
         <div class="w-12 h-12 rounded-full bg-red-100 border-2 border-red-500 flex items-center justify-center text-red-600">
-          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-6 h-6 text-red-600" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
           </svg>
         </div>
 
         <div>
-          <h3 class="text-lg font-black text-black">Konfirmasi Keluar</h3>
+          <h3 id="logout-dialog-title" class="text-lg font-black text-black">Konfirmasi Keluar</h3>
           <p class="text-xs sm:text-sm text-slate-700 font-bold mt-1.5 leading-relaxed">
-            Apakah Anda yakin ingin keluar (logout) dari aplikasi?
+            {{ hasActiveUnsavedChanges
+              ? 'Masih ada perubahan laporan yang belum disimpan. Jika Anda keluar sekarang, perubahan tersebut akan hilang. Lanjutkan keluar dari aplikasi?'
+              : 'Apakah Anda yakin ingin keluar dari aplikasi?' }}
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
   apiGetMasterWilayah,
   apiGetDaftarLaporan,
@@ -8,16 +8,12 @@ import {
   apiUpdateLaporan,
   apiGetMatriksModul,
   apiSimpanMatriksModul,
+  apiGetRekapTriwulan,
   apiFinalkanLaporan,
   apiBukaKembaliLaporan,
   hitungTriwulanDB,
-  ambilLaporan,
-  ambilSimpananTriwulan,
-  simpanTriwulan,
-  ambilTandaTangan,
-  simpanTandaTangan,
 } from '../lib/api'
-import { exportK1ToExcel, exportK2ToExcel, exportK3ToExcel, exportK4ToExcel, exportK5ToExcel, exportK6ToExcel, exportK7ToExcel, exportK8aToExcel, exportK8bToExcel, exportK8cToExcel, exportK9aToExcel, exportK9bToExcel, exportK10ToExcel } from '../lib/excel'
+import { hasActiveUnsavedChanges, bypassUnsavedGuard } from '../lib/unsavedGuard'
 
 const props = defineProps({
   config: {
@@ -64,9 +60,9 @@ const filter = reactive({
 // Rumus Triwulan sesuai Aturan Bisnis #1 PRD: (bulan + 2) DIV 3
 const hitungTriwulan = computed(() => hitungTriwulanDB(filter.bulan))
 
-// Dukungan mode Triwulan otomatis (untuk K5 s.d. K10 yang memiliki triwulanConfig)
-const supportsTriwulanMode = computed(() => Boolean(props.config.triwulanConfig))
-const isTriwulanMode = computed(() => supportsTriwulanMode.value && filter.jenis_periode === 'triwulan')
+// Semua modul (K1 s.d. K10) mendukung mode Triwulan langsung dari endpoint REST API /rekap-triwulan/{modul}
+const supportsTriwulanMode = computed(() => true)
+const isTriwulanMode = computed(() => filter.jenis_periode === 'triwulan')
 const activeTriwulanRomawi = computed(() => {
   const tw = activeLaporan.value?.triwulan || filter.triwulan
   return triwulanOptions.find(t => t.value === tw)?.romawi || 'I'
@@ -82,63 +78,15 @@ const showOpenSpinner = ref(false)
 const isWorkflowLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const triwulanBulanDipakai = ref([])
-const triwulanBulanBelumTersimpan = ref([])
+const triwulanMeta = ref(null)
 
-// State blok tanda tangan editable (untuk form dengan config.signatureConfig, mis. K10)
-const signatureData = reactive({
-  tempatTanggal: '',
-  kepalaNama: '',
-  kepalaNip: '',
-  pembuatNama: '',
-  pembuatNip: '',
-})
-
-function buildDefaultTempatTanggal({ jenis_periode, bulan, tahun }) {
-  const kota = props.config.signatureConfig?.defaults?.tempatKota || 'Banjarmasin'
-  if (jenis_periode === 'triwulan') {
-    return `${kota}, `
-  }
-  const b = Number(bulan) || 1
-  const t = Number(tahun) || new Date().getFullYear()
-  const lastDay = new Date(t, b, 0).getDate()
-  const namaBulan = bulanList.find(m => m.value === b)?.label || `Bulan ${b}`
-  return `${kota}, ${lastDay} ${namaBulan} ${t}`
-}
-
-function loadSignatureData({ jenis_periode, id_wilayah, tahun, bulan, triwulan }) {
-  if (!props.config.signatureConfig) return
-  const defaults = props.config.signatureConfig.defaults || {}
-  const defaultTempatTanggal = buildDefaultTempatTanggal({ jenis_periode, bulan, tahun })
-  const saved = ambilTandaTangan(props.config.modul, {
-    id_wilayah,
-    tahun,
-    jenis_periode,
-    bulan,
-    triwulan,
-  })
-  if (saved) {
-    signatureData.tempatTanggal = saved.tempatTanggal ?? defaultTempatTanggal
-    signatureData.kepalaNama = saved.kepalaNama ?? (defaults.kepalaNama || '')
-    signatureData.kepalaNip = saved.kepalaNip ?? (defaults.kepalaNip || '')
-    signatureData.pembuatNama = saved.pembuatNama ?? (defaults.pembuatNama || '')
-    signatureData.pembuatNip = saved.pembuatNip ?? (defaults.pembuatNip || '')
-  } else {
-    signatureData.tempatTanggal = defaultTempatTanggal
-    signatureData.kepalaNama = defaults.kepalaNama || ''
-    signatureData.kepalaNip = defaults.kepalaNip || ''
-    signatureData.pembuatNama = defaults.pembuatNama || ''
-    signatureData.pembuatNip = defaults.pembuatNip || ''
-  }
-}
-
-// Penandatangan dari wilayah_pengawasan (Aturan Bisnis #5 PRD)
+// Penandatangan resmi dari data wilayah_pengawasan (REST API /master/wilayah)
 const activeWilayahInfo = computed(() => {
   if (!activeLaporan.value) return null
   return daftarWilayah.value.find(w => w.id_wilayah === activeLaporan.value.id_wilayah) || activeLaporan.value.wilayah
 })
 
-// Tanggal laporan (kolom `tanggal_laporan` di `laporan_bulanan` untuk tanda tangan Excel)
+// Tanggal laporan (kolom `tanggal_laporan` di `laporan_bulanan`)
 const tanggalLaporan = ref('')
 
 function defaultEndOfMonthDate(tahun, bulan) {
@@ -148,19 +96,53 @@ function defaultEndOfMonthDate(tahun, bulan) {
   return `${t}-${String(b).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 }
 
-function formatTanggalIndonesia(isoDate) {
-  if (!isoDate) return ''
-  const parts = String(isoDate).slice(0, 10).split('-')
-  if (parts.length !== 3) return isoDate
-  const [y, m, d] = parts
-  const namaBulan = bulanList.find(b => b.value === Number(m))?.label || m
-  return `${Number(d)} ${namaBulan} ${y}`
+const isTriwulanView = computed(() => activeLaporan.value?.jenis_periode === 'triwulan')
+
+// Form terkunci bila berstatus Final atau sedang melihat Rekap Triwulan otomatis dari server
+const isReadOnly = computed(() => {
+  return activeLaporan.value?.status_laporan === 'final' || isTriwulanView.value
+})
+
+// Pelacakan perubahan belum disimpan (snapshot perbandingan isi formulir)
+const savedSnapshot = ref('')
+
+function serializeFormState() {
+  const sortedRowKeys = Object.keys(rowsData).sort()
+  const normalizedRows = {}
+  sortedRowKeys.forEach(rk => {
+    const row = rowsData[rk] || {}
+    const sortedFields = Object.keys(row).sort()
+    const cleanRow = {}
+    sortedFields.forEach(fk => {
+      const val = row[fk]
+      cleanRow[fk] = val === null || val === undefined ? '' : val
+    })
+    normalizedRows[rk] = cleanRow
+  })
+
+  return JSON.stringify({
+    rows: normalizedRows,
+    tanggalLaporan: activeLaporan.value?.jenis_periode === 'bulanan' ? (tanggalLaporan.value || '') : '',
+  })
 }
 
-// Cek apakah form berstatus terkunci (final = read-only)
-const isReadOnly = computed(() => {
-  return activeLaporan.value?.status_laporan === 'final'
+function markFormSaved() {
+  savedSnapshot.value = serializeFormState()
+}
+
+const hasUnsavedChanges = computed(() => {
+  if (!isFormOpen.value || !activeLaporan.value || isReadOnly.value) return false
+  if (!savedSnapshot.value) return false
+  return serializeFormState() !== savedSnapshot.value
 })
+
+watch(
+  hasUnsavedChanges,
+  (dirty) => {
+    hasActiveUnsavedChanges.value = dirty
+  },
+  { immediate: true }
+)
 
 // Cek apakah form berbasis matriks generik (K2, K3, K4, K5, dst.)
 const rowKeyField = computed(() => props.config.keyField || 'id_klui')
@@ -260,9 +242,18 @@ function findConfigRow(item) {
   })
 }
 
-// Buka form isian / Buat dokumen laporan bulanan atau agregasi Triwulan
-async function bukaFormIsian() {
+// Buka form isian / Buat dokumen laporan bulanan atau rekap Triwulan
+async function bukaFormIsian(force = false) {
   if (isOpeningForm.value) return
+  if (force !== true && hasUnsavedChanges.value) {
+    const lanjut = await mintaKonfirmasiPerubahanBelumDisimpan({
+      title: 'Perubahan Belum Disimpan',
+      message: 'Anda memiliki perubahan data yang belum disimpan pada formulir yang sedang dibuka. Membuka wilayah atau periode lain akan membuang perubahan tersebut. Tetap lanjutkan?',
+      confirmLabel: 'Ya, Lanjutkan',
+      cancelLabel: 'Tetap di Formulir',
+    })
+    if (!lanjut) return
+  }
   errorMessage.value = ''
   successMessage.value = ''
   isOpeningForm.value = true
@@ -273,76 +264,47 @@ async function bukaFormIsian() {
   }, 180)
 
   try {
-    // MODE TRIWULAN OTOMATIS (K5 s.d. K10)
+    // MODE TRIWULAN OTOMATIS DARI REST API (GET /api/rekap-triwulan/{modul})
     if (isTriwulanMode.value) {
       const twOpt = triwulanOptions.find(t => t.value === Number(filter.triwulan)) || triwulanOptions[0]
       const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(filter.id_wilayah)) || null
-      const twCfg = props.config.triwulanConfig
 
-      const nextRows = buildEmptyRows()
-      const dipakai = []
-      const belumTersimpan = []
-
-      for (const b of twOpt.bulanList) {
-        const namaBulan = bulanList.find(bl => bl.value === b)?.label || `Bulan ${b}`
-        const resBulan = await ambilLaporan(props.config.modul, {
-          id_wilayah: Number(filter.id_wilayah),
-          tahun: Number(filter.tahun),
-          bulan: b,
-        })
-
-        if (!resBulan || !resBulan.data || resBulan.data.length === 0) {
-          belumTersimpan.push(namaBulan)
-          continue
-        }
-
-        dipakai.push(namaBulan)
-
-        resBulan.data.forEach(item => {
-          const matchedRow = findConfigRow(item)
-          if (!matchedRow) return
-          const rKey = getRowId(matchedRow)
-          if (!nextRows[rKey]) return
-
-          const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
-
-          props.config.numericFields.forEach(sf => {
-            const rawVal = sourceItem[sf.key] ?? (sf.apiKey ? sourceItem[sf.apiKey] : undefined)
-            const numVal = Number(rawVal) || 0
-
-            if (twCfg.autoSumFields?.includes(sf.key)) {
-              nextRows[rKey][sf.key] = (Number(nextRows[rKey][sf.key]) || 0) + numVal
-            } else if (twCfg.lastNonZeroFields?.includes(sf.key)) {
-              if (numVal !== 0) {
-                nextRows[rKey][sf.key] = numVal
-              }
-            }
-          })
-        })
-      }
-
-      // Jika laporan triwulan sudah pernah disimpan, pakai nilai editable (Jumlah & Keterangan) yang tersimpan
-      const savedTriwulan = ambilSimpananTriwulan(props.config.modul, {
+      const resTw = await apiGetRekapTriwulan(props.config.modul || 'k1', {
         id_wilayah: Number(filter.id_wilayah),
         tahun: Number(filter.tahun),
         triwulan: twOpt.value,
       })
-      if (savedTriwulan?.rows) {
-        props.config.rows.forEach(r => {
-          const rKey = getRowId(r)
-          const savedRow = savedTriwulan.rows[rKey]
-          if (!savedRow || !nextRows[rKey]) return
-          ;(twCfg.editableFields || []).forEach(ef => {
-            if (savedRow[ef] !== undefined && savedRow[ef] !== null) {
-              nextRows[rKey][ef] = ef === props.config.textField?.key ? String(savedRow[ef]) : (Number(savedRow[ef]) || 0)
+
+      const nextRows = buildEmptyRows()
+      if (Array.isArray(resTw?.data)) {
+        resTw.data.forEach(item => {
+          if (isGenericMatrixForm.value && props.config.numericFields) {
+            const matchedRow = findConfigRow(item)
+            const rKey = matchedRow ? getRowId(matchedRow) : (item.id_klui ?? item.id_jabatan)
+            if (rKey && nextRows[rKey]) {
+              const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
+              const mapped = { ...nextRows[rKey] }
+              props.config.numericFields.forEach(sf => {
+                const rawVal = sourceItem[sf.key] ?? (sf.apiKey ? sourceItem[sf.apiKey] : undefined)
+                if (rawVal !== undefined && rawVal !== null) {
+                  mapped[sf.key] = Number(rawVal) || 0
+                }
+              })
+              nextRows[rKey] = mapped
             }
-          })
+          } else {
+            const key = item.id_jabatan
+            if (key && nextRows[key]) {
+              nextRows[key] = {
+                ...nextRows[key],
+                ...item,
+              }
+            }
+          }
         })
       }
 
-      // Perbarui state secara atomik agar tabel tidak berkedip
-      triwulanBulanDipakai.value = dipakai
-      triwulanBulanBelumTersimpan.value = belumTersimpan
+      triwulanMeta.value = resTw?.meta || null
       applyRowsData(nextRows)
       activeLaporan.value = {
         id_laporan: null,
@@ -351,19 +313,12 @@ async function bukaFormIsian() {
         bulan: null,
         triwulan: twOpt.value,
         jenis_periode: 'triwulan',
-        status_laporan: 'draf',
+        status_laporan: 'rekap',
         wilayah: wilObj,
       }
 
-      loadSignatureData({
-        jenis_periode: 'triwulan',
-        id_wilayah: Number(filter.id_wilayah),
-        tahun: Number(filter.tahun),
-        bulan: null,
-        triwulan: twOpt.value,
-      })
-
       isFormOpen.value = true
+      markFormSaved()
       return
     }
 
@@ -425,25 +380,17 @@ async function bukaFormIsian() {
     }
 
     // Perbarui semua state sekaligus setelah data siap agar tidak ada glitch/flicker
-    triwulanBulanDipakai.value = []
-    triwulanBulanBelumTersimpan.value = []
+    triwulanMeta.value = null
     tanggalLaporan.value = doc.tanggal_laporan
       ? String(doc.tanggal_laporan).slice(0, 10)
       : defaultEndOfMonthDate(doc.tahun, doc.bulan)
     applyRowsData(nextRows)
     activeLaporan.value = { ...doc, jenis_periode: 'bulanan' }
 
-    loadSignatureData({
-      jenis_periode: 'bulanan',
-      id_wilayah: doc.id_wilayah,
-      tahun: doc.tahun,
-      bulan: doc.bulan,
-      triwulan: doc.triwulan,
-    })
-
     isFormOpen.value = true
+    markFormSaved()
   } catch (err) {
-    errorMessage.value = 'Gagal membuka form: ' + (err.message || err)
+    errorMessage.value = 'Gagal membuka formulir: ' + (err.message || err)
   } finally {
     clearTimeout(spinnerTimer)
     isOpeningForm.value = false
@@ -451,7 +398,11 @@ async function bukaFormIsian() {
   }
 }
 
-// Sanitasi input angka (int >= 0)
+function isDecimalField(fieldKey) {
+  return Boolean(props.config.numericFields?.find(f => f.key === fieldKey)?.decimal)
+}
+
+// Sanitasi input angka (integer >= 0, atau desimal 2 angka di belakang koma untuk kolom desimal K8c)
 function onNumberInput(rowKey, field, event) {
   if (isReadOnly.value || isAutoField(field)) return
   const raw = event.target.value
@@ -460,10 +411,13 @@ function onNumberInput(rowKey, field, event) {
     event.target.value = 0
     return
   }
-  let val = Math.floor(Number(raw))
+  const num = Number(raw)
+  let val = isDecimalField(field) ? Math.round(num * 100) / 100 : Math.floor(num)
   if (val < 0) val = 0
   rowsData[rowKey][field] = val
-  event.target.value = val
+  if (!isDecimalField(field)) {
+    event.target.value = val
+  }
 }
 
 // Komputasi total per baris dan baris JUMLAH
@@ -515,60 +469,23 @@ const summaryTotals = computed(() => {
   return { rowTotals, colTotals, grandTotal }
 })
 
-// Simpan Matriks ke API
+// Simpan Matriks ke API (khusus mode Bulanan)
 async function simpan() {
-  if (!activeLaporan.value || isReadOnly.value) return
+  if (!activeLaporan.value || isReadOnly.value || isTriwulanView.value) return
   errorMessage.value = ''
   successMessage.value = ''
   isLoading.value = true
 
   try {
-    // MODE TRIWULAN: simpan hanya kolom editable (mis. Jumlah dan Keterangan); kolom otomatis tidak ikut disimpan
-    if (activeLaporan.value.jenis_periode === 'triwulan' && props.config.triwulanConfig) {
-      const editableFields = props.config.triwulanConfig.editableFields || []
-      const editableRows = {}
-      props.config.rows.forEach(r => {
-        const rKey = getRowId(r)
-        const rowVal = rowsData[rKey] || {}
-        const item = {}
-        editableFields.forEach(ef => {
-          item[ef] = ef === props.config.textField?.key ? (rowVal[ef] || '') : (Number(rowVal[ef]) || 0)
-        })
-        editableRows[rKey] = item
-      })
-
-      simpanTriwulan(props.config.modul, {
-        id_wilayah: activeLaporan.value.id_wilayah,
-        tahun: activeLaporan.value.tahun,
-        triwulan: activeLaporan.value.triwulan,
-      }, editableRows)
-
-      if (props.config.signatureConfig) {
-        simpanTandaTangan(props.config.modul, {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          tahun: activeLaporan.value.tahun,
-          jenis_periode: 'triwulan',
-          triwulan: activeLaporan.value.triwulan,
-        }, signatureData)
-      }
-
-      successMessage.value = 'Laporan tersimpan.'
-      setTimeout(() => {
-        if (successMessage.value === 'Laporan tersimpan.') successMessage.value = ''
-      }, 5000)
-      return
-    }
-
     let payloadBaris = []
     if (props.config.kode === 'K2') {
       payloadBaris = props.config.rows.map(r => {
         const rowVal = rowsData[r.id_klui] || {}
         const payloadItem = {
           id_klui: r.id_klui,
-          penghargaan_k3: Number(rowVal.penghargaan_k3) || 0,
         }
         props.config.numericFields.forEach(sf => {
-          payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+          payloadItem[sf.key] = Math.max(0, Math.floor(Number(rowVal[sf.key]) || 0))
         })
         return payloadItem
       })
@@ -580,7 +497,7 @@ async function simpan() {
           keterangan: rowVal.keterangan || null,
         }
         props.config.numericFields.forEach(sf => {
-          payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+          payloadItem[sf.key] = Math.max(0, Math.floor(Number(rowVal[sf.key]) || 0))
         })
         return payloadItem
       })
@@ -607,7 +524,10 @@ async function simpan() {
           payloadItem[apiTk] = props.config.staticCell.text
         }
         props.config.numericFields.forEach(sf => {
-          payloadItem[sf.apiKey || sf.key] = Number(rowVal[sf.key]) || 0
+          const rawNum = Number(rowVal[sf.key]) || 0
+          payloadItem[sf.apiKey || sf.key] = sf.decimal
+            ? Math.max(0, Math.round(rawNum * 100) / 100)
+            : Math.max(0, Math.floor(rawNum))
         })
         return payloadItem
       })
@@ -618,12 +538,12 @@ async function simpan() {
           const rowVal = rowsData[r.id_jabatan] || {}
           const payloadItem = {
             id_jabatan: r.id_jabatan,
-            jml_umum: Number(rowVal.jml_umum) || 0,
-            jml_ppns: Number(rowVal.jml_ppns) || 0,
+            jml_umum: Math.max(0, Math.floor(Number(rowVal.jml_umum) || 0)),
+            jml_ppns: Math.max(0, Math.floor(Number(rowVal.jml_ppns) || 0)),
             keterangan: rowVal.keterangan || null,
           }
           props.config.spesialisFields?.forEach(sf => {
-            payloadItem[sf.key] = Number(rowVal[sf.key]) || 0
+            payloadItem[sf.key] = Math.max(0, Math.floor(Number(rowVal[sf.key]) || 0))
           })
           return payloadItem
         })
@@ -631,21 +551,10 @@ async function simpan() {
 
     await apiSimpanMatriksModul(activeLaporan.value.id_laporan, props.config.modul || 'k1', payloadBaris)
     if (tanggalLaporan.value !== (activeLaporan.value.tanggal_laporan ? String(activeLaporan.value.tanggal_laporan).slice(0, 10) : '')) {
-      try {
-        await apiUpdateLaporan(activeLaporan.value.id_laporan, { tanggal_laporan: tanggalLaporan.value || null })
-        activeLaporan.value.tanggal_laporan = tanggalLaporan.value || null
-      } catch (e) {
-        console.warn('Pembaruan tanggal_laporan dilewati:', e.message)
-      }
+      await apiUpdateLaporan(activeLaporan.value.id_laporan, { tanggal_laporan: tanggalLaporan.value || null })
+      activeLaporan.value.tanggal_laporan = tanggalLaporan.value || null
     }
-    if (props.config.signatureConfig) {
-      simpanTandaTangan(props.config.modul, {
-        id_wilayah: activeLaporan.value.id_wilayah,
-        tahun: activeLaporan.value.tahun,
-        jenis_periode: 'bulanan',
-        bulan: activeLaporan.value.bulan,
-      }, signatureData)
-    }
+    markFormSaved()
     successMessage.value = 'Laporan tersimpan.'
     setTimeout(() => {
       if (successMessage.value === 'Laporan tersimpan.') successMessage.value = ''
@@ -662,8 +571,12 @@ async function aksiFinalkan() {
   isWorkflowLoading.value = true
   errorMessage.value = ''
   try {
-    await apiFinalkanLaporan(activeLaporan.value.id_laporan)
+    const updated = await apiFinalkanLaporan(activeLaporan.value.id_laporan, tanggalLaporan.value || null)
     activeLaporan.value.status_laporan = 'final'
+    if (updated?.tanggal_laporan) {
+      activeLaporan.value.tanggal_laporan = updated.tanggal_laporan
+      tanggalLaporan.value = String(updated.tanggal_laporan).slice(0, 10)
+    }
     successMessage.value = 'Laporan telah difinalkan dan dikunci.'
   } catch (err) {
     errorMessage.value = err.message || 'Gagal memfinalkan laporan.'
@@ -687,29 +600,62 @@ async function aksiBukaKembali() {
   }
 }
 
-// State Pop-up Konfirmasi (Iya / Tidak) untuk tombol aksi form
+// State Pop-up Konfirmasi (Iya / Tidak) untuk tombol aksi form & peringatan perubahan belum disimpan
 const confirmModal = reactive({
   open: false,
   action: null,
   title: '',
   message: '',
   danger: false,
+  confirmLabel: 'Iya',
+  cancelLabel: 'Tidak',
 })
 
+let pendingUnsavedResolve = null
+
+function mintaKonfirmasiPerubahanBelumDisimpan({
+  title = 'Perubahan Belum Disimpan',
+  message = 'Anda memiliki perubahan data yang belum disimpan. Jika meninggalkan halaman sekarang, perubahan tersebut akan hilang. Tetap lanjutkan?',
+  confirmLabel = 'Ya, Tinggalkan',
+  cancelLabel = 'Tetap di Halaman',
+} = {}) {
+  return new Promise((resolve) => {
+    if (pendingUnsavedResolve) {
+      pendingUnsavedResolve(false)
+      pendingUnsavedResolve = null
+    }
+    pendingUnsavedResolve = resolve
+    confirmModal.title = title
+    confirmModal.message = message
+    confirmModal.danger = true
+    confirmModal.confirmLabel = confirmLabel
+    confirmModal.cancelLabel = cancelLabel
+    confirmModal.action = 'unsaved_confirm'
+    confirmModal.open = true
+  })
+}
+
 function mintaKonfirmasiAksi(action) {
+  confirmModal.confirmLabel = 'Iya'
+  confirmModal.cancelLabel = 'Tidak'
+
   if (action === 'tutup') {
-    confirmModal.title = 'Konfirmasi Tutup Form'
-    confirmModal.message = 'Apakah Anda yakin ingin menutup form ini? Perubahan yang belum disimpan tidak akan tersimpan.'
-    confirmModal.danger = false
+    if (hasUnsavedChanges.value) {
+      confirmModal.title = 'Perubahan Belum Disimpan'
+      confirmModal.message = 'Anda memiliki perubahan data yang belum disimpan. Jika formulir ditutup sekarang, perubahan tersebut akan hilang. Tetap tutup formulir?'
+      confirmModal.danger = true
+      confirmModal.confirmLabel = 'Ya, Tutup'
+      confirmModal.cancelLabel = 'Tetap di Formulir'
+    } else {
+      confirmModal.title = 'Konfirmasi Tutup Formulir'
+      confirmModal.message = 'Apakah Anda yakin ingin menutup formulir ini?'
+      confirmModal.danger = false
+    }
   } else if (action === 'reset') {
     if (isReadOnly.value) return
     confirmModal.title = 'Konfirmasi Reset ke Nol'
     confirmModal.message = 'Apakah Anda yakin ingin mengosongkan semua isian tabel ke angka nol?'
     confirmModal.danger = true
-  } else if (action === 'excel') {
-    confirmModal.title = 'Konfirmasi Download Excel'
-    confirmModal.message = 'Apakah Anda yakin ingin mengunduh berkas Excel untuk laporan ini?'
-    confirmModal.danger = false
   } else if (action === 'simpan') {
     if (isLoading.value || isReadOnly.value) return
     confirmModal.title = 'Konfirmasi Simpan Laporan'
@@ -717,9 +663,17 @@ function mintaKonfirmasiAksi(action) {
     confirmModal.danger = false
   } else if (action === 'finalkan') {
     if (!activeLaporan.value?.id_laporan || isWorkflowLoading.value) return
-    confirmModal.title = 'Konfirmasi Finalkan Laporan'
-    confirmModal.message = 'Apakah Anda yakin ingin memfinalkan laporan ini? Data akan dikunci (read-only); pengesahan dilakukan manual di luar sistem.'
-    confirmModal.danger = false
+    if (hasUnsavedChanges.value) {
+      confirmModal.title = 'Perubahan Belum Disimpan'
+      confirmModal.message = 'Ada perubahan data yang belum disimpan. Simpan terlebih dahulu jika ingin perubahan ikut masuk sebelum difinalkan, atau lanjutkan finalisasi menggunakan data terakhir yang tersimpan?'
+      confirmModal.danger = true
+      confirmModal.confirmLabel = 'Tetap Finalkan'
+      confirmModal.cancelLabel = 'Kembali ke Formulir'
+    } else {
+      confirmModal.title = 'Konfirmasi Finalkan Laporan'
+      confirmModal.message = 'Apakah Anda yakin ingin memfinalkan laporan ini? Data akan dikunci; pengesahan dilakukan secara manual di luar sistem.'
+      confirmModal.danger = false
+    }
   } else if (action === 'buka_kembali') {
     if (!activeLaporan.value?.id_laporan || isWorkflowLoading.value) return
     confirmModal.title = 'Konfirmasi Buka Kembali Laporan'
@@ -735,18 +689,29 @@ function mintaKonfirmasiAksi(action) {
 function batalKonfirmasiAksi() {
   confirmModal.open = false
   confirmModal.action = null
+  if (pendingUnsavedResolve) {
+    const resolve = pendingUnsavedResolve
+    pendingUnsavedResolve = null
+    resolve(false)
+  }
 }
 
 async function lanjutKonfirmasiAksi() {
   const action = confirmModal.action
   confirmModal.open = false
   confirmModal.action = null
+  if (action === 'unsaved_confirm') {
+    if (pendingUnsavedResolve) {
+      const resolve = pendingUnsavedResolve
+      pendingUnsavedResolve = null
+      resolve(true)
+    }
+    return
+  }
   if (action === 'tutup') {
     tutupForm()
   } else if (action === 'reset') {
     resetKeNol()
-  } else if (action === 'excel') {
-    await downloadExcel()
   } else if (action === 'simpan') {
     await simpan()
   } else if (action === 'finalkan') {
@@ -776,255 +741,80 @@ function resetKeNol() {
 function tutupForm() {
   isFormOpen.value = false
   activeLaporan.value = null
+  savedSnapshot.value = ''
   successMessage.value = ''
   errorMessage.value = ''
-  triwulanBulanDipakai.value = []
-  triwulanBulanBelumTersimpan.value = []
+  triwulanMeta.value = null
 }
 
-async function downloadExcel() {
-  if (!activeLaporan.value) return
-  try {
-    const wilObj = activeWilayahInfo.value
-    const namaBulan = bulanList.find(b => b.value === activeLaporan.value.bulan)?.label || `Bulan ${activeLaporan.value.bulan}`
+function handleBeforeUnload(event) {
+  if (!hasUnsavedChanges.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
 
-    if (props.config.kode === 'K10') {
-      await exportK10ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K10',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-        signatureData: { ...signatureData },
-      })
-    } else if (props.config.kode === 'K9b') {
-      await exportK9bToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K9b',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K9a') {
-      await exportK9aToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K9a',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K8c') {
-      await exportK8cToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K8c',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K8b') {
-      await exportK8bToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K8b',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K8a') {
-      await exportK8aToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K8a',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K7') {
-      await exportK7ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K7',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K6') {
-      await exportK6ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K6',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K5') {
-      await exportK5ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          jenisPeriode: activeLaporan.value.jenis_periode || 'bulanan',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          triwulanRomawi: activeTriwulanRomawi.value,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K5',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K4') {
-      await exportK4ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K4',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K3') {
-      await exportK3ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K3',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else if (props.config.kode === 'K2') {
-      await exportK2ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          tahun: activeLaporan.value.tahun,
-          kode: 'K2',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    } else {
-      await exportK1ToExcel({
-        config: props.config,
-        meta: {
-          id_wilayah: activeLaporan.value.id_wilayah,
-          wilayahName: wilObj?.nama_kabupaten_kota || 'Banjarmasin',
-          bulan: namaBulan,
-          triwulan: activeLaporan.value.triwulan,
-          tahun: activeLaporan.value.tahun,
-          kode: props.config.kode || 'K1',
-          wilayahObj: wilObj,
-        },
-        rowsData,
-        summaryTotals: summaryTotals.value,
-      })
-    }
-  } catch (err) {
-    alert('Gagal mengekspor berkas Excel: ' + (err.message || err))
+function handleKeydown(event) {
+  if (event.key === 'Escape' && confirmModal.open) {
+    batalKonfirmasiAksi()
   }
 }
+
+onBeforeRouteLeave(async () => {
+  if (bypassUnsavedGuard.value || !hasUnsavedChanges.value) return true
+  return await mintaKonfirmasiPerubahanBelumDisimpan({
+    title: 'Perubahan Belum Disimpan',
+    message: 'Anda memiliki perubahan data pada formulir ini yang belum disimpan. Jika pindah menu sekarang, perubahan tersebut akan hilang. Tetap tinggalkan halaman?',
+    confirmLabel: 'Ya, Tinggalkan',
+    cancelLabel: 'Tetap di Halaman',
+  })
+})
+
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.fullPath === from.fullPath) return true
+  if (bypassUnsavedGuard.value || !hasUnsavedChanges.value) return true
+  return await mintaKonfirmasiPerubahanBelumDisimpan({
+    title: 'Perubahan Belum Disimpan',
+    message: 'Anda memiliki perubahan data pada formulir ini yang belum disimpan. Jika berpindah ke formulir lain sekarang, perubahan tersebut akan hilang. Tetap berpindah?',
+    confirmLabel: 'Ya, Pindah Formulir',
+    cancelLabel: 'Tetap di Halaman',
+  })
+})
 
 async function muatMaster() {
-  daftarWilayah.value = await apiGetMasterWilayah()
-  if (daftarWilayah.value.length > 0) {
-    filter.id_wilayah = daftarWilayah.value[0].id_wilayah
-  }
+  errorMessage.value = ''
+  try {
+    daftarWilayah.value = await apiGetMasterWilayah()
+    if (daftarWilayah.value.length > 0) {
+      filter.id_wilayah = daftarWilayah.value[0].id_wilayah
+    }
 
-  const q = route.query
-  if (q.id_wilayah && q.bulan && q.tahun) {
-    filter.id_wilayah = Number(q.id_wilayah)
-    filter.bulan = Number(q.bulan)
-    filter.tahun = Number(q.tahun)
-    bukaFormIsian()
+    const q = route.query
+    if (q.id_wilayah && q.bulan && q.tahun) {
+      filter.id_wilayah = Number(q.id_wilayah)
+      filter.bulan = Number(q.bulan)
+      filter.tahun = Number(q.tahun)
+      bukaFormIsian(true)
+    }
+  } catch (err) {
+    errorMessage.value = 'Gagal memuat data master wilayah: ' + (err.message || err)
   }
 }
 
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('keydown', handleKeydown)
   muatMaster()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  window.removeEventListener('keydown', handleKeydown)
+  hasActiveUnsavedChanges.value = false
+  if (pendingUnsavedResolve) {
+    const resolve = pendingUnsavedResolve
+    pendingUnsavedResolve = null
+    resolve(false)
+  }
 })
 </script>
 
@@ -1052,17 +842,18 @@ onMounted(() => {
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-base font-black text-black flex items-center gap-2">
           <span class="w-3 h-3 rounded-full bg-slate-500 border border-slate-700"></span>
-          1. Pilih wilayah dan periode
+          1. Pilih Wilayah dan Periode
         </h2>
       </div>
 
       <div :class="['grid grid-cols-1 sm:grid-cols-2 gap-4', supportsTriwulanMode && !isTriwulanMode ? 'lg:grid-cols-5' : 'lg:grid-cols-4']">
         <!-- Wilayah -->
         <div>
-          <label class="block text-xs font-black text-black mb-1.5">Wilayah Pengawasan</label>
+          <label for="form-filter-wilayah" class="block text-xs font-black text-black mb-1.5">Wilayah Pengawasan</label>
           <select
+            id="form-filter-wilayah"
             v-model.number="filter.id_wilayah"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:border-slate-700"
           >
             <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
               {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
@@ -1070,24 +861,26 @@ onMounted(() => {
           </select>
         </div>
 
-        <!-- Jenis Periode (khusus form yang mendukung agregasi Triwulan, mis. K5 s.d. K10) -->
+        <!-- Jenis Periode (khusus form yang mendukung Rekap Otomatis 3 Bulan, mis. K5 s.d. K10) -->
         <div v-if="supportsTriwulanMode">
-          <label class="block text-xs font-black text-black mb-1.5">Jenis Periode</label>
+          <label for="form-filter-jenis-periode" class="block text-xs font-black text-black mb-1.5">Jenis Periode</label>
           <select
+            id="form-filter-jenis-periode"
             v-model="filter.jenis_periode"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:border-slate-700"
           >
             <option value="bulanan">Bulanan</option>
-            <option value="triwulan">Triwulan</option>
+            <option value="triwulan">{{ config.triwulanConfig ? 'Triwulan (Rekap Otomatis 3 Bulan)' : 'Triwulan (Posisi Akhir Triwulan)' }}</option>
           </select>
         </div>
 
         <!-- Bulan (tampil pada mode Bulanan) -->
         <div v-if="!isTriwulanMode">
-          <label class="block text-xs font-black text-black mb-1.5">Bulan Laporan</label>
+          <label for="form-filter-bulan" class="block text-xs font-black text-black mb-1.5">Bulan Laporan</label>
           <select
+            id="form-filter-bulan"
             v-model.number="filter.bulan"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:border-slate-700"
           >
             <option v-for="b in bulanList" :key="b.value" :value="b.value">
               {{ b.value }}. {{ b.label }}
@@ -1095,19 +888,20 @@ onMounted(() => {
           </select>
         </div>
 
-        <!-- Triwulan (Otomatis pada mode Bulanan; Pilihan I–IV pada mode Triwulan) -->
+        <!-- Triwulan (Otomatis pada mode Bulanan; Pilihan I-IV pada mode Triwulan) -->
         <div v-if="!isTriwulanMode">
-          <label class="block text-xs font-black text-black mb-1.5">Triwulan (Otomatis)</label>
+          <span class="block text-xs font-black text-black mb-1.5">Triwulan (Otomatis)</span>
           <div class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm font-black flex items-center justify-between">
             <span>Triwulan {{ hitungTriwulan }}</span>
             <span class="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-900 border border-slate-400 font-black">TW {{ hitungTriwulan }}</span>
           </div>
         </div>
         <div v-else>
-          <label class="block text-xs font-black text-black mb-1.5">Triwulan</label>
+          <label for="form-filter-triwulan" class="block text-xs font-black text-black mb-1.5">Triwulan</label>
           <select
+            id="form-filter-triwulan"
             v-model.number="filter.triwulan"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700"
+            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-sm focus:border-slate-700"
           >
             <option v-for="tw in triwulanOptions" :key="tw.value" :value="tw.value">
               {{ tw.label }}
@@ -1117,13 +911,14 @@ onMounted(() => {
 
         <!-- Tahun -->
         <div>
-          <label class="block text-xs font-black text-black mb-1.5">Tahun Anggaran</label>
+          <label for="form-filter-tahun" class="block text-xs font-black text-black mb-1.5">Tahun Anggaran</label>
           <input
+            id="form-filter-tahun"
             v-model.number="filter.tahun"
             type="number"
             min="2026"
             max="2100"
-            class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-slate-700 font-mono font-black"
+            class="w-full bg-white border-2 border-slate-300 text-black rounded-lg px-3 py-2 text-sm focus:border-slate-700 font-mono font-black"
           />
         </div>
       </div>
@@ -1132,18 +927,18 @@ onMounted(() => {
       <div class="mt-5 flex justify-end">
         <button
           type="button"
-          @click="bukaFormIsian"
+          @click="bukaFormIsian(false)"
           :disabled="isOpeningForm"
           class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-sm rounded-lg shadow-xs border-2 border-slate-900 transition-colors flex items-center gap-2 cursor-pointer"
         >
-          <svg v-if="showOpenSpinner" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+          <svg v-if="showOpenSpinner" class="animate-spin w-4 h-4 text-white" aria-hidden="true" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
-          <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg v-else class="w-4 h-4 text-white" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
           </svg>
-          Buka form isian
+          Buka Formulir
         </button>
       </div>
     </section>
@@ -1151,7 +946,7 @@ onMounted(() => {
     <!-- KARTU 2: TABEL FORM ISIAN -->
     <section v-if="isFormOpen && activeLaporan" class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
       
-      <!-- Header Kartu & Status Workflow -->
+      <!-- Header Kartu & Status -->
       <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b-2 border-slate-300 gap-3">
         <div>
           <h2 class="text-base font-black text-black flex items-center gap-2">
@@ -1160,14 +955,20 @@ onMounted(() => {
           </h2>
           <div class="flex flex-wrap items-center gap-3 mt-1 text-xs text-black font-bold">
             <template v-if="activeLaporan.id_laporan">
-              <span>ID Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
+              <span>No. Dokumen: <strong class="font-mono text-black">#{{ activeLaporan.id_laporan }}</strong></span>
               <span>&bull;</span>
             </template>
             <span>Triwulan: <strong class="font-mono text-black">TW {{ activeLaporan.triwulan }}</strong></span>
+            <template v-if="activeLaporan.jenis_periode === 'triwulan'">
+              <span>&bull;</span>
+              <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-900 border border-slate-400 text-[11px] font-black">
+                {{ triwulanMeta?.mode_agregasi === 'snapshot' ? 'Posisi Akhir Triwulan' : 'Rekap Otomatis 3 Bulan' }}
+              </span>
+            </template>
           </div>
         </div>
 
-        <!-- Badges, Tanggal Laporan & Tombol Workflow (draf <-> final) -->
+        <!-- Badges, Tanggal Laporan & Status (Draf <-> Final) -->
         <div class="flex flex-wrap items-center gap-2">
           <!-- Input Tanggal Laporan (untuk tanda tangan Excel) -->
           <div v-if="activeLaporan.id_laporan && activeLaporan.jenis_periode === 'bulanan'" class="flex items-center gap-1.5">
@@ -1179,8 +980,18 @@ onMounted(() => {
               type="date"
               v-model="tanggalLaporan"
               :disabled="isReadOnly"
-              class="bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100"
+              class="bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-2 py-1 text-xs focus:border-slate-700 disabled:bg-slate-100"
             />
+          </div>
+
+          <!-- Indikator Perubahan Belum Disimpan -->
+          <div
+            v-if="hasUnsavedChanges"
+            role="status"
+            class="px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-950 border-2 border-amber-500 flex items-center gap-1.5"
+          >
+            <span class="w-2 h-2 rounded-full bg-amber-600"></span>
+            Perubahan belum disimpan
           </div>
 
           <!-- Status Draf (Abu-abu muda) -->
@@ -1188,8 +999,8 @@ onMounted(() => {
             v-if="activeLaporan.status_laporan === 'draf'"
             class="px-3 py-1 rounded-full text-xs font-black bg-slate-200 text-slate-900 border-2 border-slate-400 flex items-center gap-1.5"
           >
-            <span class="w-2.5 h-2.5 rounded-full bg-slate-700 animate-pulse"></span>
-            Status: DRAF (Dapat Diedit)
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+            Status: Draf (Dapat Diubah)
           </div>
 
           <!-- Status Final (Abu-abu gelap teks putih) -->
@@ -1197,53 +1008,48 @@ onMounted(() => {
             v-else-if="activeLaporan.status_laporan === 'final'"
             class="px-3 py-1 rounded-full text-xs font-black bg-slate-800 text-white border-2 border-slate-900 flex items-center gap-1.5"
           >
-            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-white" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            FINAL (Terkunci / Read-Only)
+            FINAL (Terkunci)
+          </div>
+
+          <!-- Status Rekap Triwulan -->
+          <div
+            v-else-if="isTriwulanView"
+            class="px-3 py-1 rounded-full text-xs font-black bg-slate-800 text-white border-2 border-slate-900 flex items-center gap-1.5"
+          >
+            <span>Rekap Triwulan (Terkunci)</span>
+            <span v-if="triwulanMeta?.apakah_nihil" class="px-1.5 py-0.2 rounded bg-slate-600 text-white text-[10px]">
+              NIHIL
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Banner jika terkunci (Final / Read-Only) -->
-      <div v-if="isReadOnly" class="p-3.5 rounded-lg bg-slate-100 border-2 border-slate-400 text-black text-xs flex items-center gap-2 font-bold">
-        <svg class="w-5 h-5 shrink-0 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Banner jika terkunci (Final) -->
+      <div v-if="activeLaporan.status_laporan === 'final'" class="p-3.5 rounded-lg bg-slate-100 border-2 border-slate-400 text-black text-xs flex items-center gap-2 font-bold">
+        <svg class="w-5 h-5 shrink-0 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
         </svg>
         <span class="text-black">
-          Laporan berstatus <strong>FINAL (terkunci / read-only)</strong>. Pengesahan dilakukan manual di luar sistem. Klik <strong>Buka Kembali</strong> bila perlu mengubah data.
+          Laporan berstatus <strong>FINAL (Terkunci)</strong>. Pengesahan dilakukan secara manual di luar sistem. Klik <strong>Buka Kembali</strong> bila perlu mengubah data.
         </span>
       </div>
 
-      <!-- Kotak Info Mode Triwulan (K5 s.d. K10) -->
+      <!-- Kotak Info Mode Triwulan (Semua Modul K1 s.d. K10 dari REST API) -->
       <div
-        v-if="activeLaporan.jenis_periode === 'triwulan' && config.triwulanConfig"
+        v-if="isTriwulanView"
         class="p-3.5 rounded-lg bg-slate-100 border-2 border-slate-400 text-black text-xs flex items-start gap-2.5 font-bold"
       >
-        <svg class="w-5 h-5 shrink-0 text-slate-700 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 shrink-0 text-slate-700 mt-0.5" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <span v-if="config.triwulanConfig.allLocked">
-          Triwulan dihitung otomatis dari laporan bulanan, jadi semua kolom tidak bisa diedit. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
-        </span>
-        <span v-else-if="config.triwulanConfig.infoText">
-          {{ config.triwulanConfig.infoText }} Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
+        <span v-if="triwulanMeta?.mode_agregasi === 'snapshot'">
+          Rekap triwulan dihitung otomatis dari posisi bulan terakhir triwulan (Bulan {{ activeLaporan.triwulan * 3 }}). Untuk mengubah data, silakan buka periode <strong>Bulanan</strong>.
         </span>
         <span v-else>
-          Triwulan dihitung otomatis dari laporan bulanan, jadi kolom kegiatan tidak bisa diedit. Kolom Jumlah dan Keterangan tetap bisa diisi. Bulan yang dipakai: {{ triwulanBulanDipakai.length > 0 ? triwulanBulanDipakai.join(', ') : 'belum ada' }}.
-        </span>
-      </div>
-
-      <!-- Kotak Peringatan Merah jika ada bulan belum tersimpan pada mode Triwulan -->
-      <div
-        v-if="activeLaporan.jenis_periode === 'triwulan' && config.triwulanConfig && triwulanBulanBelumTersimpan.length > 0"
-        class="p-3.5 rounded-lg bg-red-100 border-2 border-red-500 text-red-950 text-xs flex items-start gap-2.5 font-bold"
-      >
-        <svg class="w-5 h-5 shrink-0 text-red-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-        </svg>
-        <span>
-          Laporan bulan {{ triwulanBulanBelumTersimpan.join(', ') }} belum tersimpan, jadi dihitung 0.
+          Rekap otomatis 3 bulan dari seluruh laporan bulanan pada Triwulan {{ activeTriwulanRomawi }}. Untuk mengubah data, silakan buka periode <strong>Bulanan</strong>.
         </span>
       </div>
 
@@ -1521,7 +1327,7 @@ onMounted(() => {
               >
                 {{ row.sektor_klui }}
               </td>
-              <!-- 14 Kolom Kotak Isian Angka (kosong dihitung 0, tidak boleh negatif) -->
+              <!-- 15 Kolom Kotak Isian Angka K2 (termasuk Penghargaan K3 integer sesuai REST API) -->
               <td
                 v-for="f in config.numericFields"
                 :key="`k2-${row.id_klui}-${f.key}`"
@@ -1533,23 +1339,12 @@ onMounted(() => {
                   :disabled="isReadOnly"
                   :value="rowsData[row.id_klui]?.[f.key]"
                   @input="onNumberInput(row.id_klui, f.key, $event)"
-                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
-                />
-              </td>
-              <!-- Kolom Penghargaan K3 (Kotak Teks) -->
-              <td class="p-1">
-                <input
-                  type="text"
-                  maxlength="255"
-                  :disabled="isReadOnly"
-                  v-model="rowsData[row.id_klui].penghargaan_k3"
-                  placeholder="Penghargaan K3..."
-                  class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded py-1 px-2 focus:outline-none focus:border-slate-700 text-xs disabled:bg-slate-100 disabled:text-black"
+                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                 />
               </td>
             </tr>
 
-            <!-- BARIS JUMLAH TOTAL K2 (Dihitung otomatis untuk 14 kolom angka, Penghargaan K3 '-') -->
+            <!-- BARIS JUMLAH TOTAL K2 (Dihitung otomatis untuk 15 kolom angka) -->
             <tr class="bg-slate-800 font-black text-white border-t-4 border-slate-900">
               <td class="p-2.5 text-center sticky left-0 z-10 bg-slate-800 border-r border-slate-600 font-black text-white">
                 -
@@ -1563,9 +1358,6 @@ onMounted(() => {
                 class="p-2.5 text-center border-r border-slate-600 font-mono font-black text-white"
               >
                 {{ summaryTotals.colTotals?.[f.key] ?? 0 }}
-              </td>
-              <td class="p-2.5 text-center text-white font-black bg-slate-800">
-                -
               </td>
             </tr>
           </tbody>
@@ -1744,11 +1536,12 @@ onMounted(() => {
                 <input
                   type="number"
                   min="0"
+                  :step="f.decimal ? '0.01' : '1'"
                   :disabled="isReadOnly || isAutoField(f.key)"
                   :value="rowsData[getRowId(row)]?.[f.key]"
                   @input="onNumberInput(getRowId(row), f.key, $event)"
                   :class="[
-                    'w-full text-center border-2 font-black rounded py-1 px-1 focus:outline-none font-mono',
+                    'w-full text-center border-2 font-black rounded py-1 px-1 font-mono',
                     isAutoField(f.key)
                       ? 'bg-slate-200 border-slate-400 text-slate-700 cursor-not-allowed'
                       : 'bg-white border-slate-300 text-black focus:border-slate-700 disabled:bg-slate-100 disabled:text-black'
@@ -1808,114 +1601,63 @@ onMounted(() => {
 
       </div>
 
-      <!-- BLOK TANDA TANGAN EDITABLE (KONFIGURASI, MIS. K10) -->
+      <!-- INFORMASI PENANDATANGAN RESMI (DARI DATA WILAYAH BALAI DI REST API, MIS. K10) -->
       <div
-        v-if="config.signatureConfig"
-        class="pt-4 border-t-2 border-slate-300 space-y-3"
+        v-if="config.signatureConfig && activeWilayahInfo"
+        class="pt-4 border-t-2 border-slate-300 space-y-2.5"
       >
         <h3 class="text-sm font-black text-black">
-          {{ config.signatureConfig.title || 'Blok tanda tangan' }}
+          Penandatangan Resmi (Data Balai)
         </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-black text-black mb-1">
-              Tempat dan tanggal (pembuat laporan)
-            </label>
-            <input
-              type="text"
-              :disabled="isReadOnly"
-              v-model="signatureData.tempatTanggal"
-              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
-            />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="p-3 rounded-lg bg-slate-50 border border-slate-300">
+            <div class="text-[11px] font-bold text-slate-600">Kepala Balai</div>
+            <div class="font-black text-black mt-0.5">{{ activeWilayahInfo.nama_kepala_balai || '-' }}</div>
+            <div class="font-mono text-[11px] font-bold text-slate-700 mt-0.5">NIP. {{ activeWilayahInfo.nip_kepala_balai || '-' }}</div>
           </div>
-          <div>
-            <label class="block text-xs font-black text-black mb-1">
-              Kepala Balai - nama
-            </label>
-            <input
-              type="text"
-              :disabled="isReadOnly"
-              v-model="signatureData.kepalaNama"
-              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-black text-black mb-1">
-              Kepala Balai - NIP
-            </label>
-            <input
-              type="text"
-              :disabled="isReadOnly"
-              v-model="signatureData.kepalaNip"
-              class="w-full bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-black text-black mb-1">
-              Pembuat laporan - nama
-            </label>
-            <input
-              type="text"
-              :disabled="isReadOnly"
-              v-model="signatureData.pembuatNama"
-              class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-black text-black mb-1">
-              Pembuat laporan - NIP
-            </label>
-            <input
-              type="text"
-              :disabled="isReadOnly"
-              v-model="signatureData.pembuatNip"
-              class="w-full bg-white border-2 border-slate-300 text-black font-mono font-bold rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black"
-            />
+          <div class="p-3 rounded-lg bg-slate-50 border border-slate-300">
+            <div class="text-[11px] font-bold text-slate-600">Pembuat Laporan</div>
+            <div class="font-black text-black mt-0.5">{{ activeWilayahInfo.nama_pembuat_laporan || '-' }}</div>
+            <div class="font-mono text-[11px] font-bold text-slate-700 mt-0.5">NIP. {{ activeWilayahInfo.nip_pembuat_laporan || '-' }}</div>
           </div>
         </div>
       </div>
 
-      <!-- EMPAT TOMBOL AKSI -->
+      <!-- TOMBOL AKSI -->
       <div class="pt-4 flex flex-wrap items-center justify-end gap-3">
         <!-- Tombol Tutup -->
         <button
+          type="button"
           @click="mintaKonfirmasiAksi('tutup')"
           class="px-4 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
         >
           Tutup
         </button>
 
-        <!-- Tombol Reset ke Nol -->
+        <!-- Tombol Reset ke Nol (khusus mode Bulanan) -->
         <button
+          v-if="!isTriwulanView"
+          type="button"
           @click="mintaKonfirmasiAksi('reset')"
           :disabled="isReadOnly"
           class="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-950 font-black text-xs sm:text-sm rounded-lg border-2 border-red-600 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Reset ke nol
+          Reset ke Nol
         </button>
 
-        <!-- Tombol Download Excel -->
+        <!-- Tombol Simpan (khusus mode Bulanan) -->
         <button
-          @click="mintaKonfirmasiAksi('excel')"
-          class="px-4 py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer border-2 border-slate-800"
-        >
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          Download Excel
-        </button>
-
-        <!-- Tombol Simpan -->
-        <button
+          v-if="!isTriwulanView"
+          type="button"
           @click="mintaKonfirmasiAksi('simpan')"
           :disabled="isLoading || isReadOnly"
           class="px-5 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <svg v-if="isLoading" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+          <svg v-if="isLoading" class="animate-spin w-4 h-4 text-white" aria-hidden="true" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
-          <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg v-else class="w-4 h-4 text-white" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
           </svg>
           {{ isReadOnly ? 'Data Terkunci' : 'Simpan' }}
@@ -1923,12 +1665,13 @@ onMounted(() => {
 
         <!-- Tombol Finalkan Laporan (di kanan Simpan) -->
         <button
+          type="button"
           v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'draf'"
           @click="mintaKonfirmasiAksi('finalkan')"
           :disabled="isWorkflowLoading"
           class="px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-white" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           Finalkan Laporan
@@ -1936,12 +1679,13 @@ onMounted(() => {
 
         <!-- Tombol Buka Kembali (di kanan Simpan saat status Final) -->
         <button
+          type="button"
           v-if="activeLaporan.id_laporan && activeLaporan.status_laporan === 'final'"
           @click="mintaKonfirmasiAksi('buka_kembali')"
           :disabled="isWorkflowLoading"
           class="px-4 py-2 bg-red-100 hover:bg-red-200 active:scale-95 text-red-950 font-black text-xs sm:text-sm rounded-lg shadow-xs border-2 border-red-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-red-700" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
           </svg>
           Buka Kembali
@@ -1953,6 +1697,9 @@ onMounted(() => {
     <div
       v-if="confirmModal.open"
       @click.self="batalKonfirmasiAksi"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="form-confirm-title"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
     >
       <div class="bg-white border-2 border-slate-400 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -1964,16 +1711,16 @@ onMounted(() => {
               : 'bg-slate-100 border-slate-400 text-slate-800'
           ]"
         >
-          <svg v-if="confirmModal.danger" class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg v-if="confirmModal.danger" class="w-6 h-6 text-red-600" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
           </svg>
-          <svg v-else class="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg v-else class="w-6 h-6 text-slate-800" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
         </div>
 
         <div>
-          <h3 class="text-lg font-black text-black">{{ confirmModal.title }}</h3>
+          <h3 id="form-confirm-title" class="text-lg font-black text-black">{{ confirmModal.title }}</h3>
           <p class="text-xs sm:text-sm text-slate-700 font-bold mt-1.5 leading-relaxed">
             {{ confirmModal.message }}
           </p>
@@ -1985,7 +1732,7 @@ onMounted(() => {
             @click="batalKonfirmasiAksi"
             class="px-5 py-2 bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm rounded-lg border-2 border-slate-400 transition cursor-pointer"
           >
-            Tidak
+            {{ confirmModal.cancelLabel }}
           </button>
           <button
             type="button"
@@ -1997,7 +1744,7 @@ onMounted(() => {
                 : 'bg-slate-900 hover:bg-slate-800 border-slate-900'
             ]"
           >
-            Iya
+            {{ confirmModal.confirmLabel }}
           </button>
         </div>
       </div>

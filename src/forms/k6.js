@@ -43,7 +43,7 @@ export const formK6 = {
   modul: 'k6',
   tabel_db: 'rekap_k6_pemeriksaan_header',
   judul: 'PEMERIKSAAN RINCI (APBN)',
-  subjudul: 'Laporan Rincian Pemeriksaan APBN (Matriks Jabatan x Sektor x Jenis Pemeriksaan)',
+  subjudul: 'Laporan Rincian Pemeriksaan APBN Menurut Jabatan, Sektor, dan Jenis Pemeriksaan',
   tableCardTitlePrefix: '2. Isi data pemeriksaan rinci',
   rowType: 'jabatan',
   keyField: 'key',

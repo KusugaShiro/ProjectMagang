@@ -77,10 +77,11 @@ const isFormOpen = ref(false)
 const activeLaporan = ref(null)
 const rowsData = reactive({})
 const isLoading = ref(false)
+const isOpeningForm = ref(false)
+const showOpenSpinner = ref(false)
 const isWorkflowLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const infoMessage = ref('')
 const triwulanBulanDipakai = ref([])
 const triwulanBulanBelumTersimpan = ref([])
 
@@ -186,9 +187,9 @@ function isAutoField(fieldKey) {
   )
 }
 
-// Inisialisasi baris kosong untuk form K1, K2, K3, K4, K5, dst.
-function initEmptyRows() {
-  Object.keys(rowsData).forEach(k => delete rowsData[k])
+// Buat struktur baris kosong baru tanpa langsung mengosongkan tabel aktif (anti-flicker)
+function buildEmptyRows() {
+  const fresh = {}
 
   if (isGenericMatrixForm.value) {
     props.config.rows.forEach(row => {
@@ -208,7 +209,7 @@ function initEmptyRows() {
       props.config.numericFields.forEach(sf => {
         rowItem[sf.key] = 0
       })
-      rowsData[rKey] = rowItem
+      fresh[rKey] = rowItem
     })
   } else {
     props.config.rows.forEach(row => {
@@ -222,10 +223,25 @@ function initEmptyRows() {
         props.config.spesialisFields?.forEach(sf => {
           rowItem[sf.key] = 0
         })
-        rowsData[row.id_jabatan] = rowItem
+        fresh[row.id_jabatan] = rowItem
       }
     })
   }
+
+  return fresh
+}
+
+function applyRowsData(nextRows) {
+  Object.keys(rowsData).forEach(k => {
+    if (!(k in nextRows)) delete rowsData[k]
+  })
+  Object.keys(nextRows).forEach(k => {
+    rowsData[k] = nextRows[k]
+  })
+}
+
+function initEmptyRows() {
+  applyRowsData(buildEmptyRows())
 }
 
 // Helper cari definisi baris dari item respons API
@@ -246,12 +262,15 @@ function findConfigRow(item) {
 
 // Buka form isian / Buat dokumen laporan bulanan atau agregasi Triwulan
 async function bukaFormIsian() {
+  if (isOpeningForm.value) return
   errorMessage.value = ''
   successMessage.value = ''
-  infoMessage.value = ''
-  triwulanBulanDipakai.value = []
-  triwulanBulanBelumTersimpan.value = []
-  isLoading.value = true
+  isOpeningForm.value = true
+
+  // Tampilkan spinner hanya jika proses > 180ms agar tombol tidak berkedip saat respon cepat
+  const spinnerTimer = setTimeout(() => {
+    if (isOpeningForm.value) showOpenSpinner.value = true
+  }, 180)
 
   try {
     // MODE TRIWULAN OTOMATIS (K5 s.d. K10)
@@ -260,8 +279,7 @@ async function bukaFormIsian() {
       const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(filter.id_wilayah)) || null
       const twCfg = props.config.triwulanConfig
 
-      initEmptyRows()
-
+      const nextRows = buildEmptyRows()
       const dipakai = []
       const belumTersimpan = []
 
@@ -284,7 +302,7 @@ async function bukaFormIsian() {
           const matchedRow = findConfigRow(item)
           if (!matchedRow) return
           const rKey = getRowId(matchedRow)
-          if (!rowsData[rKey]) return
+          if (!nextRows[rKey]) return
 
           const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
 
@@ -293,10 +311,10 @@ async function bukaFormIsian() {
             const numVal = Number(rawVal) || 0
 
             if (twCfg.autoSumFields?.includes(sf.key)) {
-              rowsData[rKey][sf.key] = (Number(rowsData[rKey][sf.key]) || 0) + numVal
+              nextRows[rKey][sf.key] = (Number(nextRows[rKey][sf.key]) || 0) + numVal
             } else if (twCfg.lastNonZeroFields?.includes(sf.key)) {
               if (numVal !== 0) {
-                rowsData[rKey][sf.key] = numVal
+                nextRows[rKey][sf.key] = numVal
               }
             }
           })
@@ -313,18 +331,19 @@ async function bukaFormIsian() {
         props.config.rows.forEach(r => {
           const rKey = getRowId(r)
           const savedRow = savedTriwulan.rows[rKey]
-          if (!savedRow || !rowsData[rKey]) return
+          if (!savedRow || !nextRows[rKey]) return
           ;(twCfg.editableFields || []).forEach(ef => {
             if (savedRow[ef] !== undefined && savedRow[ef] !== null) {
-              rowsData[rKey][ef] = ef === props.config.textField?.key ? String(savedRow[ef]) : (Number(savedRow[ef]) || 0)
+              nextRows[rKey][ef] = ef === props.config.textField?.key ? String(savedRow[ef]) : (Number(savedRow[ef]) || 0)
             }
           })
         })
       }
 
+      // Perbarui state secara atomik agar tabel tidak berkedip
       triwulanBulanDipakai.value = dipakai
       triwulanBulanBelumTersimpan.value = belumTersimpan
-
+      applyRowsData(nextRows)
       activeLaporan.value = {
         id_laporan: null,
         id_wilayah: Number(filter.id_wilayah),
@@ -365,30 +384,18 @@ async function bukaFormIsian() {
         bulan: Number(filter.bulan),
         tanggal_laporan: defaultTgl,
       })
-      infoMessage.value = 'Dokumen laporan baru telah dibuat (Status: Draf).'
-    } else {
-      if (doc.status_laporan === 'final') {
-        infoMessage.value = 'Laporan ini berstatus FINAL (terkunci / Read-Only). Pengesahan dilakukan manual di luar sistem.'
-      } else {
-        infoMessage.value = 'Dokumen laporan draf dimuat. Menyimpan akan memperbarui data matriks.'
-      }
     }
 
-    tanggalLaporan.value = doc.tanggal_laporan
-      ? String(doc.tanggal_laporan).slice(0, 10)
-      : defaultEndOfMonthDate(doc.tahun, doc.bulan)
-    activeLaporan.value = { ...doc, jenis_periode: 'bulanan' }
-    initEmptyRows()
-
+    const nextRows = buildEmptyRows()
     const resModul = await apiGetMatriksModul(doc.id_laporan, props.config.modul || 'k1')
     if (resModul?.data && Array.isArray(resModul.data) && resModul.data.length > 0) {
       resModul.data.forEach(item => {
         if (isGenericMatrixForm.value && props.config.numericFields) {
           const matchedRow = findConfigRow(item)
           const rKey = matchedRow ? getRowId(matchedRow) : (item.id_klui ?? item.id_jabatan)
-          if (rKey && rowsData[rKey]) {
+          if (rKey && nextRows[rKey]) {
             const sourceItem = props.config.fromApiRow ? props.config.fromApiRow(item) : item
-            const mapped = { ...rowsData[rKey] }
+            const mapped = { ...nextRows[rKey] }
             props.config.numericFields.forEach(sf => {
               const rawVal = sourceItem[sf.key] ?? (sf.apiKey ? sourceItem[sf.apiKey] : undefined)
               if (rawVal !== undefined && rawVal !== null) {
@@ -403,19 +410,28 @@ async function bukaFormIsian() {
               const tk = props.config.staticCell.key || 'keterangan'
               mapped[tk] = props.config.staticCell.text
             }
-            rowsData[rKey] = mapped
+            nextRows[rKey] = mapped
           }
         } else {
           const key = item.id_jabatan
-          if (key && rowsData[key]) {
-            rowsData[key] = {
-              ...rowsData[key],
+          if (key && nextRows[key]) {
+            nextRows[key] = {
+              ...nextRows[key],
               ...item,
             }
           }
         }
       })
     }
+
+    // Perbarui semua state sekaligus setelah data siap agar tidak ada glitch/flicker
+    triwulanBulanDipakai.value = []
+    triwulanBulanBelumTersimpan.value = []
+    tanggalLaporan.value = doc.tanggal_laporan
+      ? String(doc.tanggal_laporan).slice(0, 10)
+      : defaultEndOfMonthDate(doc.tahun, doc.bulan)
+    applyRowsData(nextRows)
+    activeLaporan.value = { ...doc, jenis_periode: 'bulanan' }
 
     loadSignatureData({
       jenis_periode: 'bulanan',
@@ -429,7 +445,9 @@ async function bukaFormIsian() {
   } catch (err) {
     errorMessage.value = 'Gagal membuka form: ' + (err.message || err)
   } finally {
-    isLoading.value = false
+    clearTimeout(spinnerTimer)
+    isOpeningForm.value = false
+    showOpenSpinner.value = false
   }
 }
 
@@ -647,7 +665,6 @@ async function aksiFinalkan() {
     await apiFinalkanLaporan(activeLaporan.value.id_laporan)
     activeLaporan.value.status_laporan = 'final'
     successMessage.value = 'Laporan telah difinalkan dan dikunci.'
-    infoMessage.value = 'Status laporan kini: FINAL (terkunci / read-only).'
   } catch (err) {
     errorMessage.value = err.message || 'Gagal memfinalkan laporan.'
   } finally {
@@ -663,7 +680,6 @@ async function aksiBukaKembali() {
     await apiBukaKembaliLaporan(activeLaporan.value.id_laporan)
     activeLaporan.value.status_laporan = 'draf'
     successMessage.value = 'Laporan dibuka kembali ke status Draf.'
-    infoMessage.value = 'Kunci data dibuka kembali. Anda dapat mengedit isian form.'
   } catch (err) {
     errorMessage.value = err.message || 'Gagal membuka kembali laporan.'
   } finally {
@@ -761,7 +777,6 @@ function tutupForm() {
   isFormOpen.value = false
   activeLaporan.value = null
   successMessage.value = ''
-  infoMessage.value = ''
   errorMessage.value = ''
   triwulanBulanDipakai.value = []
   triwulanBulanBelumTersimpan.value = []
@@ -1032,14 +1047,6 @@ onMounted(() => {
       <div class="font-black text-black">{{ successMessage }}</div>
     </div>
 
-    <!-- Pesan Info Status -->
-    <div v-if="infoMessage" class="p-4 rounded-xl bg-slate-50 border-2 border-slate-400 text-black text-sm flex items-center gap-3 shadow-xs font-bold">
-      <svg class="w-5 h-5 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-      <div class="text-black">{{ infoMessage }}</div>
-    </div>
-
     <!-- KARTU 1: PILIH WILAYAH DAN PERIODE -->
     <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs">
       <div class="flex items-center justify-between mb-4">
@@ -1047,9 +1054,6 @@ onMounted(() => {
           <span class="w-3 h-3 rounded-full bg-slate-500 border border-slate-700"></span>
           1. Pilih wilayah dan periode
         </h2>
-        <span class="text-xs text-black font-bold">
-          PRD: Header (wilayah, tahun, bulan) unik &bull; triwulan = (bulan + 2) DIV 3
-        </span>
       </div>
 
       <div :class="['grid grid-cols-1 sm:grid-cols-2 gap-4', supportsTriwulanMode && !isTriwulanMode ? 'lg:grid-cols-5' : 'lg:grid-cols-4']">
@@ -1127,11 +1131,12 @@ onMounted(() => {
       <!-- Tombol Aksi Buka Form -->
       <div class="mt-5 flex justify-end">
         <button
+          type="button"
           @click="bukaFormIsian"
-          :disabled="isLoading"
-          class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-sm rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          :disabled="isOpeningForm"
+          class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-sm rounded-lg shadow-xs border-2 border-slate-900 transition-colors flex items-center gap-2 cursor-pointer"
         >
-          <svg v-if="isLoading" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+          <svg v-if="showOpenSpinner" class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>

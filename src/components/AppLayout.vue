@@ -245,7 +245,7 @@ const currentTitle = computed(() => {
       </aside>
 
       <!-- KONTEN AREA KANAN -->
-      <div class="flex-1 flex flex-col min-w-0 overflow-y-auto bg-slate-50">
+      <div class="flex-1 flex flex-col min-w-0 overflow-y-auto [scrollbar-gutter:stable] bg-slate-50">
 
         <!-- TOP BAR (Tinggi h-16 sejajar lurus dengan Header Sidebar) -->
         <header class="h-16 bg-white border-b-2 border-slate-300 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">

@@ -214,6 +214,7 @@ function buildEmptyRows() {
 }
 
 function applyRowsData(nextRows) {
+  clearActiveNumberCell()
   Object.keys(rowsData).forEach(k => {
     if (!(k in nextRows)) delete rowsData[k]
   })
@@ -398,26 +399,116 @@ async function bukaFormIsian(force = false) {
   }
 }
 
+const activeNumberCell = reactive({
+  key: null,
+  text: '',
+})
+
+function clearActiveNumberCell() {
+  activeNumberCell.key = null
+  activeNumberCell.text = ''
+}
+
 function isDecimalField(fieldKey) {
   return Boolean(props.config.numericFields?.find(f => f.key === fieldKey)?.decimal)
+}
+
+function getNumberInputValue(rowKey, field) {
+  const cellKey = `${rowKey}:${field}`
+  if (activeNumberCell.key === cellKey) {
+    return activeNumberCell.text
+  }
+  return rowsData[rowKey]?.[field] ?? 0
+}
+
+function onNumberFocus(rowKey, field) {
+  if (isReadOnly.value || isAutoField(field)) return
+  const cellKey = `${rowKey}:${field}`
+  const current = rowsData[rowKey]?.[field] ?? 0
+  activeNumberCell.key = cellKey
+  activeNumberCell.text = Number(current) === 0 ? '' : String(current)
+}
+
+function onNumberBlur(rowKey, field, event) {
+  const cellKey = `${rowKey}:${field}`
+  if (activeNumberCell.key === cellKey) {
+    clearActiveNumberCell()
+  }
+  if (event?.target) {
+    event.target.value = String(rowsData[rowKey]?.[field] ?? 0)
+  }
+}
+
+function onNumberKeydown(field, event) {
+  if (event.ctrlKey || event.metaKey || event.altKey) return
+  const decimal = isDecimalField(field)
+  const blockedKeys = decimal
+    ? ['-', '+', 'e', 'E']
+    : ['-', '+', 'e', 'E', '.', ',']
+  const blockedCodes = decimal
+    ? ['Minus', 'NumpadSubtract', 'NumpadAdd', 'KeyE']
+    : ['Minus', 'NumpadSubtract', 'NumpadAdd', 'KeyE', 'Period', 'NumpadDecimal', 'Comma']
+  if (blockedKeys.includes(event.key) || blockedCodes.includes(event.code)) {
+    event.preventDefault()
+  }
+}
+
+function onNumberBeforeInput(field, event) {
+  if (!event.data) return
+  const pattern = isDecimalField(field) ? /^[0-9.,]+$/ : /^[0-9]+$/
+  if (!pattern.test(event.data)) {
+    event.preventDefault()
+  }
 }
 
 // Sanitasi input angka (integer >= 0, atau desimal 2 angka di belakang koma untuk kolom desimal K8c)
 function onNumberInput(rowKey, field, event) {
   if (isReadOnly.value || isAutoField(field)) return
+  const cellKey = `${rowKey}:${field}`
   const raw = event.target.value
-  if (raw === '' || isNaN(raw)) {
+  activeNumberCell.key = cellKey
+
+  if (raw === '') {
+    if (event.target.validity?.badInput) {
+      if (!isDecimalField(field)) {
+        event.target.value = activeNumberCell.text
+      }
+      return
+    }
+    activeNumberCell.text = ''
     rowsData[rowKey][field] = 0
-    event.target.value = 0
     return
   }
+
   const num = Number(raw)
-  let val = isDecimalField(field) ? Math.round(num * 100) / 100 : Math.floor(num)
+  if (Number.isNaN(num)) {
+    activeNumberCell.text = ''
+    rowsData[rowKey][field] = 0
+    event.target.value = ''
+    return
+  }
+
+  if (isDecimalField(field)) {
+    if (num < 0) {
+      activeNumberCell.text = ''
+      rowsData[rowKey][field] = 0
+      event.target.value = ''
+      return
+    }
+    rowsData[rowKey][field] = Math.round(num * 100) / 100
+    const cleaned = raw.replace(/^0+(?=\d)/, '')
+    activeNumberCell.text = cleaned
+    if (cleaned !== raw) {
+      event.target.value = cleaned
+    }
+    return
+  }
+
+  let val = Math.floor(num)
   if (val < 0) val = 0
   rowsData[rowKey][field] = val
-  if (!isDecimalField(field)) {
-    event.target.value = val
-  }
+  activeNumberCell.text = String(val)
+  event.target.value = String(val)
 }
 
 // Komputasi total per baris dan baris JUMLAH
@@ -723,6 +814,7 @@ async function lanjutKonfirmasiAksi() {
 
 function resetKeNol() {
   if (isReadOnly.value) return
+  clearActiveNumberCell()
   if (activeLaporan.value?.jenis_periode === 'triwulan' && props.config.triwulanConfig) {
     const editableFields = props.config.triwulanConfig.editableFields || []
     props.config.rows.forEach(r => {
@@ -739,6 +831,7 @@ function resetKeNol() {
 }
 
 function tutupForm() {
+  clearActiveNumberCell()
   isFormOpen.value = false
   activeLaporan.value = null
   savedSnapshot.value = ''
@@ -1153,10 +1246,15 @@ onUnmounted(() => {
                   <input
                     type="number"
                     min="0"
+                    placeholder="0"
                     :disabled="isReadOnly"
-                    :value="rowsData[row.id_jabatan]?.jml_umum"
+                    :value="getNumberInputValue(row.id_jabatan, 'jml_umum')"
+                    @focus="onNumberFocus(row.id_jabatan, 'jml_umum')"
+                    @blur="onNumberBlur(row.id_jabatan, 'jml_umum', $event)"
+                    @keydown="onNumberKeydown('jml_umum', $event)"
+                    @beforeinput="onNumberBeforeInput('jml_umum', $event)"
                     @input="onNumberInput(row.id_jabatan, 'jml_umum', $event)"
-                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black placeholder:text-slate-500 rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
                 <td
@@ -1167,10 +1265,15 @@ onUnmounted(() => {
                   <input
                     type="number"
                     min="0"
+                    placeholder="0"
                     :disabled="isReadOnly"
-                    :value="rowsData[row.id_jabatan]?.[sf.key]"
+                    :value="getNumberInputValue(row.id_jabatan, sf.key)"
+                    @focus="onNumberFocus(row.id_jabatan, sf.key)"
+                    @blur="onNumberBlur(row.id_jabatan, sf.key, $event)"
+                    @keydown="onNumberKeydown(sf.key, $event)"
+                    @beforeinput="onNumberBeforeInput(sf.key, $event)"
                     @input="onNumberInput(row.id_jabatan, sf.key, $event)"
-                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black placeholder:text-slate-500 rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
                 <td class="p-2 text-center font-black text-black bg-slate-200 border-r-2 border-slate-300 font-mono text-sm">
@@ -1180,10 +1283,15 @@ onUnmounted(() => {
                   <input
                     type="number"
                     min="0"
+                    placeholder="0"
                     :disabled="isReadOnly"
-                    :value="rowsData[row.id_jabatan]?.jml_ppns"
+                    :value="getNumberInputValue(row.id_jabatan, 'jml_ppns')"
+                    @focus="onNumberFocus(row.id_jabatan, 'jml_ppns')"
+                    @blur="onNumberBlur(row.id_jabatan, 'jml_ppns', $event)"
+                    @keydown="onNumberKeydown('jml_ppns', $event)"
+                    @beforeinput="onNumberBeforeInput('jml_ppns', $event)"
                     @input="onNumberInput(row.id_jabatan, 'jml_ppns', $event)"
-                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                    class="w-full text-center bg-white border-2 border-slate-300 text-black font-black placeholder:text-slate-500 rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                   />
                 </td>
                 <td class="p-1">
@@ -1336,10 +1444,15 @@ onUnmounted(() => {
                 <input
                   type="number"
                   min="0"
+                  placeholder="0"
                   :disabled="isReadOnly"
-                  :value="rowsData[row.id_klui]?.[f.key]"
+                  :value="getNumberInputValue(row.id_klui, f.key)"
+                  @focus="onNumberFocus(row.id_klui, f.key)"
+                  @blur="onNumberBlur(row.id_klui, f.key, $event)"
+                  @keydown="onNumberKeydown(f.key, $event)"
+                  @beforeinput="onNumberBeforeInput(f.key, $event)"
                   @input="onNumberInput(row.id_klui, f.key, $event)"
-                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black placeholder:text-slate-500 rounded py-1 px-1 focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                 />
               </td>
             </tr>
@@ -1426,10 +1539,15 @@ onUnmounted(() => {
                 <input
                   type="number"
                   min="0"
+                  placeholder="0"
                   :disabled="isReadOnly"
-                  :value="rowsData[row.id_klui]?.[f.key]"
+                  :value="getNumberInputValue(row.id_klui, f.key)"
+                  @focus="onNumberFocus(row.id_klui, f.key)"
+                  @blur="onNumberBlur(row.id_klui, f.key, $event)"
+                  @keydown="onNumberKeydown(f.key, $event)"
+                  @beforeinput="onNumberBeforeInput(f.key, $event)"
                   @input="onNumberInput(row.id_klui, f.key, $event)"
-                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
+                  class="w-full text-center bg-white border-2 border-slate-300 text-black font-black placeholder:text-slate-500 rounded py-1 px-1 focus:outline-none focus:border-slate-700 disabled:bg-slate-100 disabled:text-black font-mono"
                 />
               </td>
               <!-- Kolom Ket (Kotak Teks) -->
@@ -1536,12 +1654,17 @@ onUnmounted(() => {
                 <input
                   type="number"
                   min="0"
+                  placeholder="0"
                   :step="f.decimal ? '0.01' : '1'"
                   :disabled="isReadOnly || isAutoField(f.key)"
-                  :value="rowsData[getRowId(row)]?.[f.key]"
+                  :value="getNumberInputValue(getRowId(row), f.key)"
+                  @focus="onNumberFocus(getRowId(row), f.key)"
+                  @blur="onNumberBlur(getRowId(row), f.key, $event)"
+                  @keydown="onNumberKeydown(f.key, $event)"
+                  @beforeinput="onNumberBeforeInput(f.key, $event)"
                   @input="onNumberInput(getRowId(row), f.key, $event)"
                   :class="[
-                    'w-full text-center border-2 font-black rounded py-1 px-1 font-mono',
+                    'w-full text-center border-2 font-black placeholder:text-slate-500 rounded py-1 px-1 font-mono',
                     isAutoField(f.key)
                       ? 'bg-slate-200 border-slate-400 text-slate-700 cursor-not-allowed'
                       : 'bg-white border-slate-300 text-black focus:border-slate-700 disabled:bg-slate-100 disabled:text-black'

@@ -28,22 +28,8 @@ const daftarFilter = reactive({
   status: 'semua',
 })
 
-// State Ekspor Excel Resmi Balai (GET /api/ekspor/excel: K1 s.d. K10)
-const isExporting = ref(false)
+// State Ekspor Excel per baris
 const exportingRowId = ref(null)
-const eksporFilter = reactive({
-  id_wilayah: 1,
-  tahun: new Date().getFullYear(),
-  triwulan: '',
-})
-
-const triwulanEksporOptions = [
-  { value: '', label: 'Satu Tahun Penuh (Jan - Des)' },
-  { value: 1, label: 'Triwulan I (Jan - Mar)' },
-  { value: 2, label: 'Triwulan II (Apr - Jun)' },
-  { value: 3, label: 'Triwulan III (Jul - Sep)' },
-  { value: 4, label: 'Triwulan IV (Okt - Des)' },
-]
 
 // Daftar tahun tersedia dari arsip laporan + tahun default
 const tahunTersedia = computed(() => {
@@ -153,44 +139,10 @@ async function muatDaftar() {
     ])
     daftarWilayah.value = wilayahRes
     items.value = daftarRes
-
-    if (daftarWilayah.value.length > 0 && !daftarWilayah.value.some(w => w.id_wilayah === eksporFilter.id_wilayah)) {
-      eksporFilter.id_wilayah = daftarWilayah.value[0].id_wilayah
-    }
-    if (daftarRes.length > 0 && !daftarRes.some(d => Number(d.tahun) === Number(eksporFilter.tahun))) {
-      eksporFilter.tahun = Number(daftarRes[0].tahun)
-    }
   } catch (err) {
     errorMessage.value = 'Gagal memuat arsip laporan: ' + (err.message || err)
   } finally {
     isLoading.value = false
-  }
-}
-
-async function downloadExcelRekap() {
-  isExporting.value = true
-  errorMessage.value = ''
-  feedbackMessage.value = ''
-  try {
-    const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(eksporFilter.id_wilayah)) || null
-    const twVal = eksporFilter.triwulan === '' ? null : Number(eksporFilter.triwulan)
-
-    const result = await apiUnduhExcelResmi({
-      id_wilayah: Number(eksporFilter.id_wilayah),
-      tahun: Number(eksporFilter.tahun),
-      triwulan: twVal,
-      kodeWilayah: wilObj?.kode_wilayah || null,
-    })
-
-    const labelPeriode = twVal ? `Triwulan ${twVal}` : 'Satu Tahun Penuh'
-    feedbackMessage.value = `Berhasil mengunduh ${result.fileName} (Rekap resmi K1 s.d. K10, ${labelPeriode} ${eksporFilter.tahun}).`
-    setTimeout(() => {
-      if (feedbackMessage.value.startsWith('Berhasil mengunduh')) feedbackMessage.value = ''
-    }, 6000)
-  } catch (err) {
-    errorMessage.value = 'Gagal mengunduh berkas Excel resmi: ' + (err.message || err)
-  } finally {
-    isExporting.value = false
   }
 }
 
@@ -288,16 +240,7 @@ const confirmModal = reactive({
 })
 
 function mintaKonfirmasiAksi(action, item = null) {
-  if (action === 'excel_rekap') {
-    const wilObj = daftarWilayah.value.find(w => w.id_wilayah === Number(eksporFilter.id_wilayah))
-    const namaWil = wilObj?.nama_kabupaten_kota || 'Wilayah terpilih'
-    const periodeLabel =
-      triwulanEksporOptions.find(opt => String(opt.value) === String(eksporFilter.triwulan))?.label ||
-      'Satu Tahun Penuh'
-    confirmModal.title = 'Konfirmasi Unduh Excel'
-    confirmModal.message = `Apakah Anda yakin ingin mengunduh berkas Excel resmi K1 s.d. K10 untuk ${namaWil} periode ${periodeLabel} ${eksporFilter.tahun}?`
-    confirmModal.danger = false
-  } else if (action === 'excel_baris' && item) {
+  if (action === 'excel_baris' && item) {
     const namaWil = item.wilayah?.nama_kabupaten_kota || `Wilayah ${item.id_wilayah}`
     confirmModal.title = 'Konfirmasi Unduh Excel'
     confirmModal.message = `Apakah Anda yakin ingin mengunduh berkas Excel resmi K1 s.d. K10 untuk ${namaWil} Triwulan ${item.triwulan} tahun ${item.tahun}?`
@@ -331,9 +274,7 @@ async function lanjutKonfirmasiAksi() {
   confirmModal.action = null
   confirmModal.item = null
 
-  if (action === 'excel_rekap') {
-    await downloadExcelRekap()
-  } else if (action === 'excel_baris' && item) {
+  if (action === 'excel_baris' && item) {
     await downloadExcelBaris(item)
   } else if (action === 'finalkan' && item) {
     await prosesFinalkan(item)
@@ -441,86 +382,6 @@ onUnmounted(() => {
       </svg>
       <span class="font-bold text-black">{{ errorMessage }}</span>
     </div>
-
-    <!-- KARTU UNDUH EXCEL GABUNGAN (K1 s.d. K10 DALAM 1 BERKAS) -->
-    <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div>
-          <h2 class="text-sm sm:text-base font-black text-black flex items-center gap-2">
-            <svg class="w-4 h-4 text-slate-900 shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Unduh Rekap Excel Gabungan (K1 s.d. K10)
-          </h2>
-          <p class="text-xs text-slate-700 font-bold mt-0.5">
-            Satu berkas Excel lengkap berisi seluruh formulir K1 s.d. K10 (K1, K2, K3, K4, K5, K6, K7, K8a, K8b, K8c, K9a, K9b, K10).
-          </p>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-        <!-- Wilayah -->
-        <div>
-          <label for="ekspor-wilayah" class="block text-xs font-black text-black mb-1">Wilayah Pengawasan</label>
-          <select
-            id="ekspor-wilayah"
-            v-model.number="eksporFilter.id_wilayah"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:border-slate-700"
-          >
-            <option v-for="w in daftarWilayah" :key="w.id_wilayah" :value="w.id_wilayah">
-              {{ w.nama_kabupaten_kota }} ({{ w.kode_wilayah }})
-            </option>
-          </select>
-        </div>
-
-        <!-- Tahun -->
-        <div>
-          <label for="ekspor-tahun" class="block text-xs font-black text-black mb-1">Tahun</label>
-          <select
-            id="ekspor-tahun"
-            v-model.number="eksporFilter.tahun"
-            class="w-full bg-white border-2 border-slate-300 text-black font-mono font-black rounded-lg px-3 py-2 text-xs focus:border-slate-700"
-          >
-            <option v-for="th in tahunTersedia" :key="th" :value="th">
-              {{ th }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Periode (Satu Tahun Penuh atau Triwulan I-IV) -->
-        <div>
-          <label for="ekspor-periode" class="block text-xs font-black text-black mb-1">Periode Rekap</label>
-          <select
-            id="ekspor-periode"
-            v-model="eksporFilter.triwulan"
-            class="w-full bg-white border-2 border-slate-300 text-black font-bold rounded-lg px-3 py-2 text-xs focus:border-slate-700"
-          >
-            <option v-for="opt in triwulanEksporOptions" :key="String(opt.value)" :value="opt.value">
-              {{ opt.label }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Tombol Unduh -->
-        <div>
-          <button
-            type="button"
-            @click="mintaKonfirmasiAksi('excel_rekap')"
-            :disabled="isExporting || isLoading || daftarWilayah.length === 0"
-            class="w-full px-4 py-2 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs rounded-lg shadow-xs border-2 border-slate-900 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <svg v-if="isExporting" class="animate-spin w-4 h-4 text-white" aria-hidden="true" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-            <svg v-else class="w-4 h-4 text-white" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            <span>{{ isExporting ? 'Menyiapkan Excel...' : (eksporFilter.triwulan ? `Unduh Excel TW ${eksporFilter.triwulan}` : `Unduh Excel ${eksporFilter.tahun}`) }}</span>
-          </button>
-        </div>
-      </div>
-    </section>
 
     <!-- Tabel Dokumen Laporan Bulanan (Putih) -->
     <section class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">

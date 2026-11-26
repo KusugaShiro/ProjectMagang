@@ -1,7 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { apiGetDaftarLaporan, apiGetMasterWilayah, hitungTriwulanDB } from '../lib/api'
-import { muatStatistikFormulirK1K10 } from '../lib/statistik'
 
 const bulanNames = [
   '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -17,13 +16,6 @@ const laporanList = ref([])
 const daftarWilayah = ref([])
 const isLoadingSummary = ref(true)
 const summaryError = ref('')
-
-// State Diagram Keseluruhan Formulir K1 s.d. K10
-const statistikFormulir = ref([])
-const isLoadingFormulir = ref(false)
-const formulirError = ref('')
-const modeDiagramForm = ref('nilai') // 'nilai' | 'kelengkapan'
-let formulirLoadSeq = 0
 
 const now = new Date()
 const selectedTahun = ref(now.getFullYear())
@@ -194,50 +186,6 @@ function pilihBulan(bulanNum) {
   selectedBulanDetail.value = bulanNum
 }
 
-const maxNilaiFormulir = computed(() => {
-  let maxVal = 0
-  statistikFormulir.value.forEach(item => {
-    if (item.nilai > maxVal) maxVal = item.nilai
-  })
-  return maxVal
-})
-
-const jumlahFormulirTerisi = computed(() => {
-  return statistikFormulir.value.filter(item => item.terisiCount > 0).length
-})
-
-function lebarBarNilai(nilai) {
-  if (!nilai || maxNilaiFormulir.value <= 0) return 0
-  return Math.max(4, Math.round((nilai / maxNilaiFormulir.value) * 100))
-}
-
-async function muatStatistikFormulir() {
-  const seq = ++formulirLoadSeq
-  isLoadingFormulir.value = true
-  formulirError.value = ''
-  try {
-    const hasil = await muatStatistikFormulirK1K10(laporanTahunAktif.value)
-    if (seq !== formulirLoadSeq) return
-    statistikFormulir.value = hasil
-  } catch (err) {
-    if (seq !== formulirLoadSeq) return
-    formulirError.value = err.message || 'Gagal memuat statistik formulir K1 s.d. K10.'
-  } finally {
-    if (seq === formulirLoadSeq) {
-      isLoadingFormulir.value = false
-    }
-  }
-}
-
-watch(
-  () => [selectedTahun.value, laporanList.value],
-  () => {
-    if (!isLoadingSummary.value && !summaryError.value) {
-      muatStatistikFormulir()
-    }
-  }
-)
-
 async function muatRingkasan() {
   isLoadingSummary.value = true
   summaryError.value = ''
@@ -256,10 +204,6 @@ async function muatRingkasan() {
     summaryError.value = err.message || 'Gagal memuat ringkasan laporan.'
   } finally {
     isLoadingSummary.value = false
-  }
-
-  if (!summaryError.value) {
-    await muatStatistikFormulir()
   }
 }
 
@@ -432,9 +376,8 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Grid 2 Diagram Utama + Diagram Keseluruhan K1 s.d. K10 -->
-      <div v-else class="space-y-4">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <!-- Grid 2 Diagram Utama -->
+      <div v-else class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         <!-- DIAGRAM 1: Diagram Batang Laporan Bulanan (Jan s.d. Des) -->
         <div class="lg:col-span-7 bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs flex flex-col justify-between gap-4">
           <div class="flex flex-wrap items-start justify-between gap-2 pb-3 border-b-2 border-slate-200">
@@ -740,186 +683,6 @@ onMounted(() => {
                     :style="{ width: `${w.persenDraf}%` }"
                   ></div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        </div>
-
-        <!-- DIAGRAM 3: Statistik Keseluruhan Formulir K1 s.d. K10 -->
-        <div class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b-2 border-slate-200">
-            <div>
-              <h3 class="text-sm font-black text-black">
-                Diagram Keseluruhan Formulir K1 s.d. K10 ({{ selectedTahun }})
-              </h3>
-              <p class="text-[11px] font-bold text-slate-600 mt-0.5">
-                {{ modeDiagramForm === 'nilai'
-                  ? 'Total angka indikator utama tiap formulir (K1 s.d. K4 posisi bulan terakhir; K5 s.d. K10 akumulasi tahunan).'
-                  : 'Jumlah laporan yang sudah memiliki isian data pada masing-masing formulir K1 s.d. K10.' }}
-              </p>
-            </div>
-
-            <div
-              role="group"
-              aria-label="Pilih tampilan diagram formulir K1 sampai K10"
-              class="inline-grid grid-cols-2 rounded-lg border-2 border-slate-300 overflow-hidden bg-slate-100 shrink-0 self-start sm:self-auto"
-            >
-              <button
-                type="button"
-                @click="modeDiagramForm = 'nilai'"
-                :aria-pressed="modeDiagramForm === 'nilai'"
-                :class="[
-                  'px-3 py-1.5 text-xs font-black transition cursor-pointer whitespace-nowrap',
-                  modeDiagramForm === 'nilai'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-800 hover:bg-slate-100'
-                ]"
-              >
-                Total Data
-              </button>
-              <button
-                type="button"
-                @click="modeDiagramForm = 'kelengkapan'"
-                :aria-pressed="modeDiagramForm === 'kelengkapan'"
-                :class="[
-                  'px-3 py-1.5 text-xs font-black border-l border-slate-300 transition cursor-pointer whitespace-nowrap',
-                  modeDiagramForm === 'kelengkapan'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-800 hover:bg-slate-100'
-                ]"
-              >
-                Kelengkapan Isi
-              </button>
-            </div>
-          </div>
-
-          <!-- Loading Formulir -->
-          <div
-            v-if="isLoadingFormulir"
-            class="py-10 text-center text-xs font-bold text-slate-700"
-          >
-            Memuat statistik keseluruhan formulir K1 s.d. K10...
-          </div>
-
-          <!-- Error Formulir -->
-          <div
-            v-else-if="formulirError"
-            class="py-8 text-center space-y-2.5"
-          >
-            <p class="text-xs font-black text-red-700">{{ formulirError }}</p>
-            <button
-              type="button"
-              @click="muatStatistikFormulir"
-              class="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg transition cursor-pointer"
-            >
-              Muat Ulang
-            </button>
-          </div>
-
-          <!-- Kosong Tahun Ini -->
-          <div
-            v-else-if="laporanTahunAktif.length === 0"
-            class="py-8 text-center space-y-2"
-          >
-            <p class="text-xs font-bold text-slate-600">
-              Belum ada laporan tersimpan pada tahun {{ selectedTahun }} untuk dihitung statistiknya.
-            </p>
-            <router-link
-              to="/input/k1"
-              class="inline-block px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg transition"
-            >
-              Mulai Isi Formulir K1
-            </router-link>
-          </div>
-
-          <!-- Diagram Batang Horizontal K1 s.d. K10 -->
-          <div v-else class="space-y-3">
-            <div
-              v-for="item in statistikFormulir"
-              :key="item.kode"
-              class="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-3 items-center py-1.5 border-b border-slate-100 last:border-b-0"
-            >
-              <!-- Kode & Nama Formulir -->
-              <div class="md:col-span-4 flex items-center gap-2.5 min-w-0">
-                <router-link
-                  :to="`/input/${item.modul}`"
-                  class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-white font-mono font-black text-[11px] shrink-0 w-10 text-center transition"
-                  :title="`Buka Formulir ${item.kode} - ${item.nama}`"
-                >
-                  {{ item.kode }}
-                </router-link>
-                <div class="min-w-0">
-                  <div class="text-xs font-black text-black truncate">
-                    {{ item.nama }}
-                  </div>
-                  <div class="text-[10px] font-bold text-slate-500 truncate">
-                    {{ modeDiagramForm === 'nilai'
-                      ? (item.catatan ? `${item.modeLabel} - ${item.catatan}` : item.modeLabel)
-                      : `${item.indikator}` }}
-                  </div>
-                </div>
-              </div>
-
-              <!-- Batang Diagram Horizontal -->
-              <div class="md:col-span-5">
-                <div
-                  class="w-full h-3.5 rounded-full bg-slate-100 border border-slate-200 overflow-hidden"
-                  role="img"
-                  :aria-label="modeDiagramForm === 'nilai'
-                    ? `${item.kode} ${item.nama}: ${item.nilai} ${item.satuan}`
-                    : `${item.kode} ${item.nama}: terisi di ${item.terisiCount} dari ${item.totalLaporan} laporan (${item.persenTerisi}%)`"
-                >
-                  <div
-                    v-if="modeDiagramForm === 'nilai' && item.nilai > 0"
-                    class="h-full rounded-full bg-slate-900 transition-all"
-                    :style="{ width: `${lebarBarNilai(item.nilai)}%` }"
-                  ></div>
-                  <div
-                    v-else-if="modeDiagramForm === 'kelengkapan' && item.persenTerisi > 0"
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      item.persenTerisi === 100 ? 'bg-slate-900' : 'bg-amber-600'
-                    ]"
-                    :style="{ width: `${item.persenTerisi}%` }"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- Nilai Angka & Tombol Buka -->
-              <div class="md:col-span-3 flex items-center justify-between md:justify-end gap-2">
-                <span v-if="modeDiagramForm === 'nilai'" class="text-xs font-mono font-black text-black whitespace-nowrap">
-                  {{ item.nilai.toLocaleString('id-ID') }}
-                  <span class="font-sans font-bold text-slate-600 text-[11px]">{{ item.satuan }}</span>
-                </span>
-                <span v-else class="text-xs font-mono font-black text-black whitespace-nowrap">
-                  {{ item.terisiCount }}/{{ item.totalLaporan }}
-                  <span class="text-slate-600 font-bold text-[11px]">({{ item.persenTerisi }}%)</span>
-                </span>
-
-                <router-link
-                  :to="`/input/${item.modul}`"
-                  class="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-900 text-[11px] font-black transition shrink-0"
-                >
-                  Buka
-                </router-link>
-              </div>
-            </div>
-
-            <!-- Keterangan Bawah Diagram K1 s.d. K10 -->
-            <div class="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-700">
-              <span>
-                <strong class="text-black font-mono">{{ jumlahFormulirTerisi }}</strong> dari <strong class="text-black font-mono">{{ statistikFormulir.length }}</strong> formulir sudah memiliki data terisi pada tahun {{ selectedTahun }}.
-              </span>
-              <div v-if="modeDiagramForm === 'kelengkapan'" class="flex items-center gap-3">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="w-3 h-3 rounded-xs bg-slate-900 inline-block"></span>
-                  Lengkap (100%)
-                </span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="w-3 h-3 rounded-xs bg-amber-600 inline-block"></span>
-                  Sebagian Terisi
-                </span>
               </div>
             </div>
           </div>

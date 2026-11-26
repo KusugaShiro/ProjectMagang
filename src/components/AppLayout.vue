@@ -303,12 +303,11 @@ const currentTitle = computed(() => {
               aria-label="Menu akun pengguna"
               class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-white border-2 border-slate-400 hover:bg-slate-100 transition cursor-pointer shadow-xs"
             >
-              <div class="w-2.5 h-2.5 rounded-full bg-slate-500 ring-2 ring-slate-300"></div>
-              <div class="text-left hidden sm:block">
+              <div class="text-left">
                 <div class="text-xs font-black text-black leading-tight">
                   {{ currentUser?.username || 'pengawas' }}
                 </div>
-                <div class="text-[10px] text-slate-600 font-bold leading-tight">
+                <div class="text-[10px] text-slate-600 font-bold leading-tight hidden sm:block">
                   Pengawas Wilayah I
                 </div>
               </div>

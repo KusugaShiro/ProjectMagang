@@ -153,6 +153,18 @@ const isGenericMatrixForm = computed(() => {
   return isKluiForm.value || Boolean(props.config.headerRows?.length)
 })
 
+const descriptionItems = computed(() => {
+  return props.config.columnDescriptions || props.config.specialistDescriptions || []
+})
+
+const hasLongDescLabel = computed(() => {
+  return descriptionItems.value.some(d => String(d.label || d.id || '').length > 9)
+})
+
+const hasLongDescText = computed(() => {
+  return descriptionItems.value.some(d => String(d.text || '').length > 70)
+})
+
 function getRowId(row) {
   return row[rowKeyField.value] ?? row.id_klui ?? row.key ?? row.id_jabatan
 }
@@ -1875,25 +1887,34 @@ onUnmounted(() => {
 
     <!-- KARTU 3: KETERANGAN KOLOM -->
     <section
-      v-if="(config.columnDescriptions && config.columnDescriptions.length > 0) || (config.specialistDescriptions && config.specialistDescriptions.length > 0)"
+      v-if="descriptionItems.length > 0"
       class="bg-white border-2 border-slate-300 rounded-xl p-5 shadow-xs"
     >
       <h3 class="text-sm font-black text-black mb-3 flex items-center gap-2">
-        <svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-black shrink-0" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         {{ config.columnDescriptionTitle || (config.columnDescriptions ? 'Keterangan kolom:' : 'Keterangan kolom spesialis:') }}
       </h3>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
+      <div
+        :class="[
+          'grid gap-2.5 text-xs',
+          hasLongDescText || hasLongDescLabel
+            ? 'grid-cols-1 md:grid-cols-2'
+            : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+        ]"
+      >
         <div
-          v-for="desc in (config.columnDescriptions || config.specialistDescriptions)"
+          v-for="desc in descriptionItems"
           :key="desc.label || desc.id"
-          class="bg-white border-2 border-slate-300 rounded-lg p-2.5 text-black flex items-start gap-2 shadow-xs"
+          class="bg-white border-2 border-slate-300 rounded-lg p-2.5 text-black flex items-start gap-2 min-w-0 overflow-hidden shadow-xs"
         >
-          <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-slate-200 text-slate-900 font-black text-[11px] shrink-0 border border-slate-400 min-w-[20px] text-center">
+          <span class="inline-flex items-center justify-center px-2 py-0.5 rounded bg-slate-200 text-slate-900 font-black text-[11px] shrink-0 border border-slate-400 min-w-[22px] max-w-full break-words text-center">
             {{ desc.label || desc.id }}
           </span>
-          <span class="leading-relaxed text-black font-bold">{{ desc.text }}</span>
+          <span class="leading-relaxed text-black font-bold min-w-0 flex-1 break-words">
+            {{ desc.text }}
+          </span>
         </div>
       </div>
     </section>

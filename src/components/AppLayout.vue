@@ -41,12 +41,12 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-function toggleSidebar() {
-  if (window.innerWidth >= 1024) {
-    isDesktopSidebarOpen.value = !isDesktopSidebarOpen.value
-  } else {
-    isMobileSidebarOpen.value = !isMobileSidebarOpen.value
-  }
+function toggleDesktopSidebar() {
+  isDesktopSidebarOpen.value = !isDesktopSidebarOpen.value
+}
+
+function toggleMobileSidebar() {
+  isMobileSidebarOpen.value = !isMobileSidebarOpen.value
 }
 
 function closeMobileSidebar() {
@@ -96,7 +96,7 @@ const currentTitle = computed(() => {
     <!-- WRAPPER UTAMA -->
     <div class="flex-1 flex min-h-0 overflow-hidden">
 
-      <!-- SIDEBAR KIRI (PUTIH & ABU-ABU BERSIH — EXPANDED / MINI ICON RAIL) -->
+      <!-- SIDEBAR KIRI (PUTIH & ABU-ABU BERSIH: EXPANDED / MINI ICON RAIL) -->
       <aside
         :class="[
           'fixed inset-y-0 left-0 z-50 bg-white border-r-2 border-slate-300 flex flex-col transition-all duration-200 ease-in-out lg:static lg:h-full shrink-0',
@@ -108,7 +108,7 @@ const currentTitle = computed(() => {
         <div
           :class="[
             'h-16 border-b-2 border-slate-300 flex items-center gap-2 bg-white shrink-0',
-            isDesktopSidebarOpen ? 'px-4 justify-between' : 'px-4 justify-between lg:px-0 lg:justify-center'
+            isDesktopSidebarOpen ? 'px-3.5 justify-between' : 'px-3.5 justify-between lg:px-0 lg:justify-center'
           ]"
         >
           <div class="flex items-center gap-2.5 min-w-0">
@@ -131,6 +131,20 @@ const currentTitle = computed(() => {
             </div>
           </div>
 
+          <!-- Tombol Tutup / Perkecil Sidebar Desktop (di dalam sidebar saat terbuka) -->
+          <button
+            v-if="isDesktopSidebarOpen"
+            type="button"
+            @click="toggleDesktopSidebar"
+            aria-label="Kecilkan sidebar"
+            title="Kecilkan menu"
+            class="hidden lg:inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-black transition cursor-pointer shrink-0"
+          >
+            <svg class="w-4 h-4 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+
           <!-- Tombol Tutup Sidebar di Mobile -->
           <button
             type="button"
@@ -144,11 +158,29 @@ const currentTitle = computed(() => {
           </button>
         </div>
 
+        <!-- Tombol Pembuka Sidebar Desktop saat Tertutup (tepat di bawah logo Balai) -->
+        <div
+          v-if="!isDesktopSidebarOpen"
+          class="hidden lg:flex justify-center pt-3 pb-1 shrink-0 bg-white"
+        >
+          <button
+            type="button"
+            @click="toggleDesktopSidebar"
+            aria-label="Buka penuh sidebar"
+            title="Buka penuh menu"
+            class="w-10 h-10 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-black flex items-center justify-center transition cursor-pointer"
+          >
+            <svg class="w-4 h-4 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
         <!-- Navigasi Menu Sidebar -->
         <nav
           :class="[
             'flex-1 overflow-y-auto text-xs custom-scrollbar bg-white',
-            isDesktopSidebarOpen ? 'p-3 space-y-6' : 'p-3 space-y-6 lg:px-2 lg:py-3 lg:space-y-3'
+            isDesktopSidebarOpen ? 'p-3 space-y-6' : 'p-3 space-y-6 lg:px-2 lg:pt-2 lg:pb-3 lg:space-y-3'
           ]"
         >
 
@@ -275,14 +307,15 @@ const currentTitle = computed(() => {
         <!-- TOP BAR (Tinggi h-16 sejajar lurus dengan Header Sidebar) -->
         <header class="h-16 bg-white border-b-2 border-slate-300 px-4 sm:px-6 flex items-center justify-between shrink-0 sticky top-0 z-30">
           <div class="flex items-center gap-3 min-w-0">
-            <!-- Tombol Garis Tiga (Buka/Tutup Sidebar Desktop & Mobile) -->
+            <!-- Tombol Garis Tiga (Khusus Mobile saat sidebar drawer tersembunyi) -->
             <button
-              @click="toggleSidebar"
-              class="p-2 rounded-lg text-slate-800 hover:bg-slate-100 border border-slate-300 transition cursor-pointer shrink-0"
-              aria-label="Buka atau tutup sidebar"
-              title="Buka / Tutup Menu"
+              type="button"
+              @click="toggleMobileSidebar"
+              class="lg:hidden p-2 rounded-lg text-slate-800 hover:bg-slate-100 border border-slate-300 transition cursor-pointer shrink-0"
+              aria-label="Buka menu navigasi"
+              title="Buka Menu"
             >
-              <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-5 h-5 text-black" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
